@@ -1,0 +1,14 @@
+.env
+.env.*
+
+node_modules/
+
+dist/
+build/
+.next/
+
+.DS_Store
+
+# Local domain data (do not commit)
+SundaySky - Domain Vectors v01_06_26.xlsx
+

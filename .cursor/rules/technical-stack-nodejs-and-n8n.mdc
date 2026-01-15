@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+#Technical stack Nodejs and n8n
+Node.js (TypeScript) for the backend
+Next.js (TypeScript) with HTML/JS/CSS for the frontend
+PostgreSQL databases, never JSON file storage
+Separate databases for dev, test, and prod
+Elastic.co will have dev and prod indexes
+Jest tests for Node.js
+
