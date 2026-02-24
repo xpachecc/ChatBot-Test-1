@@ -10,6 +10,8 @@ import {
   runTurn,
   type CfsState,
 } from "./langgraph/graph.js";
+import { computeFlowProgress } from "./langgraph/utilities.js";
+import { getOptionsForQuestionKey } from "./langgraph/flows/chatOptions.js";
 
 dotenv.config();
 
@@ -55,7 +57,6 @@ app.post("/chat", async (req: Request<unknown, unknown, ChatRequestBody>, res: R
     const existingState = sessionStore.get(sessionKey) ?? createInitialState({ sessionId: sessionKey });
     const prevLen = existingState.messages.length;
 
-    // Treat initial "start" as a kick-off without adding a user message.
     const userInput = message === "start" && prevLen === 0 ? undefined : message;
     const nextState = await runTurn(graphApp, existingState, userInput);
     sessionStore.set(sessionKey, nextState);
@@ -67,7 +68,10 @@ app.post("/chat", async (req: Request<unknown, unknown, ChatRequestBody>, res: R
         .filter(Boolean)
         .join("\n\n") || "Sorry, I could not process the response.";
 
-    return res.json({ response: content });
+    const flowProgress = computeFlowProgress(nextState);
+    const options = await getOptionsForQuestionKey(nextState.session_context.last_question_key, nextState);
+
+    return res.json({ response: content, flowProgress, options });
   } catch (error: any) {
     console.error("Chat error:", error);
     return res.status(500).json({
@@ -79,6 +83,17 @@ app.post("/chat", async (req: Request<unknown, unknown, ChatRequestBody>, res: R
 
 app.get("/test", (_req: Request, res: Response) => {
   res.json({ status: "Server is running" });
+});
+
+app.get("/readout/:sessionId.md", (req: Request, res: Response) => {
+  const { sessionId } = req.params;
+  const state = sessionStore.get(sessionId);
+  if (!state?.readout_context?.rendered_outputs?.markdown) {
+    return res.status(404).send("Readout not found.");
+  }
+  res.setHeader("Content-Type", "text/markdown");
+  res.setHeader("Content-Disposition", `attachment; filename="readout-${sessionId}.md"`);
+  res.send(state.readout_context.rendered_outputs.markdown);
 });
 
 app.listen(PORT, () => {

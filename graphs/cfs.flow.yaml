@@ -1,0 +1,656 @@
+# ──────────────────────────────────────────────────────────────────────
+# CFS (Customer-Facing Sales) Conversation Flow — GraphDSL v1
+# ──────────────────────────────────────────────────────────────────────
+# This file fully describes the graph topology for the CFS chatbot.
+# Runtime infrastructure (state validation, runTurn lifecycle, AI/vector
+# tooling) is shared and NOT redefined here.
+# ──────────────────────────────────────────────────────────────────────
+
+graph:
+  graphId: cfs
+  version: "1.0.0"
+  description: >
+    4-step consultative conversation: Know Your Customer, Narrow Down
+    Use Cases, Perform Discovery, and Final Readout with Next Steps.
+  entrypoint: routeInitFlow
+  tags:
+    - cfs
+    - discovery
+    - readout
+
+stateContractRef: "state.CfsStateSchema"
+
+# ── Node catalog ─────────────────────────────────────────────────────
+nodes:
+  # Routing control (passthrough identity nodes)
+  - id: routeInitFlow
+    kind: router
+    handlerRef: "cfs.routeInitFlow"
+    description: "Central router — dispatches based on session state."
+
+  - id: routePillarsLoop
+    kind: router
+    handlerRef: "cfs.routePillarsLoop"
+    description: "Pillar loop router — gates readout generation."
+
+  # Step 1: Know Your Customer
+  - id: sendIntroAndAskUseCaseGroup
+    kind: question
+    handlerRef: "step1.nodeInit"
+    writes: [messages, session_context, use_case_context]
+    description: "Send introduction and ask for use case group."
+
+  - id: askUserName
+    kind: question
+    handlerRef: "step1.nodeAskUserName"
+    writes: [messages, session_context]
+    description: "Ask user for their name."
+
+  - id: askIndustry
+    kind: question
+    handlerRef: "step1.nodeAskIndustry"
+    writes: [messages, session_context]
+    description: "Ask user for their industry."
+
+  - id: internetSearch
+    kind: integration
+    handlerRef: "step1.nodeInternetSearch"
+    writes: [internet_search_context, session_context]
+    description: "Internet search for industry context via Firecrawl."
+
+  - id: ingestUseCaseGroupSelection
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [use_case_context, session_context]
+
+  - id: ingestConfirmStart
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [session_context]
+
+  - id: ingestUserName
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+
+  - id: ingestIndustry
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+
+  - id: ingestRole
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+
+  - id: ingestConfirmRole
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+
+  - id: ingestTimeframe
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+
+  - id: ingestKycConfirm
+    kind: ingest
+    handlerRef: "step1.nodeStep1Ingest"
+    reads: [messages, session_context]
+    writes: [session_context]
+
+  - id: knowYourCustomerEcho
+    kind: compute
+    handlerRef: "step1.nodeKnowYourCustomerEcho"
+    reads: [user_context, use_case_context, vector_context]
+    writes: [messages, session_context]
+    description: "Echo KYC summary for user confirmation."
+
+  # Step 2: Narrow Down Use Cases
+  - id: nodeDetermineUseCases
+    kind: compute
+    handlerRef: "step2.nodeDetermineUseCases"
+    reads: [user_context, use_case_context, vector_context]
+    writes: [use_case_context, messages, session_context]
+    description: "AI-driven use case determination and presentation."
+
+  - id: ingestUseCaseSelection
+    kind: ingest
+    handlerRef: "step2.nodeIngestUseCaseSelection"
+    reads: [messages, session_context]
+    writes: [use_case_context, session_context]
+
+  - id: nodeDetermineUseCaseQuestions
+    kind: compute
+    handlerRef: "step2.nodeDetermineUseCaseQuestions"
+    reads: [user_context, use_case_context, vector_context]
+    writes: [use_case_context, session_context]
+    description: "Generate discovery questions based on selected use cases."
+
+  # Step 3: Perform Discovery
+  - id: nodeAskUseCaseQuestions
+    kind: question
+    handlerRef: "step3.nodeAskUseCaseQuestions"
+    reads: [use_case_context, session_context]
+    writes: [messages, session_context, use_case_context]
+    description: "Present discovery questions in loop."
+
+  - id: nodeDeterminePillars
+    kind: compute
+    handlerRef: "step3.nodeDeterminePillars"
+    reads: [use_case_context, user_context]
+    writes: [use_case_context, session_context]
+    description: "AI pillar selection based on discovery answers."
+
+  # Step 4: Build Readout
+  - id: nodeBuildReadout
+    kind: compute
+    handlerRef: "step4.nodeBuildReadout"
+    reads: [user_context, use_case_context, vector_context, readout_context]
+    writes: [readout_context, session_context]
+    description: "Build readout document (no display)."
+
+  # Step 5: Readout Summary and Next Steps
+  - id: nodeDisplayReadout
+    kind: compute
+    handlerRef: "step4.nodeDisplayReadout"
+    reads: [readout_context, session_context]
+    writes: [messages]
+    description: "Display readout document and download option."
+
+# ── Transitions ──────────────────────────────────────────────────────
+transitions:
+  conditional:
+    - from: routeInitFlow
+      routerRef: "cfs.routeInitFlow"
+      destinations:
+        sendIntroAndAskUseCaseGroup: sendIntroAndAskUseCaseGroup
+        askUserName: askUserName
+        askIndustry: askIndustry
+        internetSearch: internetSearch
+        ingestUseCaseGroupSelection: ingestUseCaseGroupSelection
+        ingestConfirmStart: ingestConfirmStart
+        ingestUserName: ingestUserName
+        ingestIndustry: ingestIndustry
+        ingestRole: ingestRole
+        ingestConfirmRole: ingestConfirmRole
+        ingestTimeframe: ingestTimeframe
+        ingestKycConfirm: ingestKycConfirm
+        ingestUseCaseSelection: ingestUseCaseSelection
+        routePillarsLoop: routePillarsLoop
+        nodeAskUseCaseQuestions: nodeAskUseCaseQuestions
+        nodeDeterminePillars: nodeDeterminePillars
+        end: "__end__"
+
+    - from: routePillarsLoop
+      routerRef: "cfs.routePillarsLoop"
+      destinations:
+        nodeBuildReadout: nodeBuildReadout
+        nodeDisplayReadout: nodeDisplayReadout
+        end: "__end__"
+
+  static:
+    - { from: sendIntroAndAskUseCaseGroup, to: "__end__" }
+    - { from: askUserName,                 to: "__end__" }
+    - { from: askIndustry,                 to: "__end__" }
+    - { from: internetSearch,              to: "__end__" }
+    - { from: ingestUseCaseGroupSelection, to: "__end__" }
+    - { from: ingestConfirmStart,          to: "__end__" }
+    - { from: ingestUserName,              to: "__end__" }
+    - { from: ingestIndustry,              to: "__end__" }
+    - { from: ingestRole,                  to: "__end__" }
+    - { from: ingestConfirmRole,           to: "__end__" }
+    - { from: ingestTimeframe,             to: knowYourCustomerEcho }
+    - { from: ingestKycConfirm,            to: nodeDetermineUseCases }
+    - { from: knowYourCustomerEcho,        to: "__end__" }
+    - { from: nodeDetermineUseCases,       to: "__end__" }
+    - { from: ingestUseCaseSelection,      to: nodeDetermineUseCaseQuestions }
+    - { from: nodeDetermineUseCaseQuestions, to: nodeAskUseCaseQuestions }
+    - { from: nodeAskUseCaseQuestions,     to: "__end__" }
+    - { from: nodeDeterminePillars,        to: routePillarsLoop }
+    - { from: nodeBuildReadout,            to: nodeDisplayReadout }
+    - { from: nodeDisplayReadout,          to: "__end__" }
+
+# ── Routing keys (state paths that drive routing decisions) ──────────
+routingKeys:
+  - session_context.step
+  - session_context.last_question_key
+  - session_context.awaiting_user
+  - session_context.started
+  - session_context.primitive_counter
+  - session_context.reason_trace
+  - readout_context.status
+  - messages
+
+# ── Runtime config references ────────────────────────────────────────
+runtimeConfigRefs:
+  modelAliases:
+    knowYourCustomer: "gpt-3.5-turbo"
+    useCaseQuestions: "gpt-3.5-turbo"
+    readout: "gpt-4o"
+  messagePolicyRef: "cfs.messagePolicy"
+  promptSetRef: "cfs.aiPrompts"
+  exampleGeneratorRef: "cfs.exampleGenerator"
+  overlayPrefixRef: "cfs.overlayPrefix"
+
+# ── Per-graph conversation config ────────────────────────────────────
+config:
+  meta:
+    flowTitle: "Discovery Account Executive"
+    flowDescription: "This automated assessment analyzes your needs to provide personalized strategic insights."
+    steps:
+      - key: STEP1_KNOW_YOUR_CUSTOMER
+        label: "Know Your Customer"
+        order: 1
+        countable: true
+        totalQuestions: 6
+      - key: STEP2_NARROW_DOWN_USE_CASES
+        label: "Narrow Down Use Cases"
+        order: 2
+        countable: true
+        totalQuestions: 1
+      - key: STEP3_PERFORM_DISCOVERY
+        label: "Perform Discovery"
+        order: 3
+        countable: true
+        totalQuestions: 3
+      - key: STEP4_BUILD_READOUT
+        label: "Build Readout"
+        order: 4
+        countable: true
+        totalQuestions: 1
+      - key: STEP5_READOUT_SUMMARY_NEXT_STEPS
+        label: "Readout Summary and Next Steps"
+        order: 5
+        countable: true
+        totalQuestions: 1
+
+  overlayPrefixes:
+    Mentor_Supportive: "To keep this supportive, "
+    CTO_Consultative: "To keep this focused, "
+    SeniorSE_Challenging: "To stress-test this, "
+    Coach_Affirmative: "To build on your momentum, "
+    default: "To stay aligned, "
+
+  exampleTemplates:
+    role:
+      - 'Example (as a user): "You lead the team that owns your analytics workflow and reporting cadence."'
+      - 'Example (as a user): "You''re accountable for the platform operations process and weekly release governance."'
+    industry:
+      - 'Example (as a user): "Your organization is in {{industry}}, supporting regulated workflows and recurring reporting cycles."'
+      - 'Example (as a user): "You operate in {{industry}}, with multiple teams depending on shared data processes."'
+    goal:
+      - 'Example: "Reduce manual handoffs in the workflow so the process runs consistently every week."'
+      - 'Example: "Improve data availability for reporting so leadership decisions aren''t delayed each month."'
+    timeframe:
+      - 'Example: "We need this operating reliably by end of this quarter, with weekly governance checks."'
+      - 'Example: "Within 90 days, we need a repeatable process across teams, reviewed monthly."'
+
+  progressRules:
+    questionKeyMap:
+      S1_USE_CASE_GROUP: 0
+      CONFIRM_START: 1
+      S1_NAME: 1
+      S1_INDUSTRY: 2
+      S1_INTERNET_SEARCH: 2
+      S1_ROLE: 3
+      CONFIRM_ROLE: 4
+      S1_TIMEFRAME: 4
+      S1_KYC_CONFIRM: 5
+    dynamicCountField: "use_case_context.discovery_questions"
+    dynamicCountStepKey: "STEP3_PERFORM_DISCOVERY"
+
+  steps:
+    - id: STEP1_KNOW_YOUR_CUSTOMER
+      label: "step1-Know_Your_Customer"
+    - id: STEP2_NARROW_DOWN_USE_CASES
+      label: "step2-Narrow_Down_Use_Cases"
+    - id: STEP3_PERFORM_DISCOVERY
+      label: "step3-Perform_Discovery"
+    - id: STEP4_BUILD_READOUT
+      label: "step4-Build_Readout"
+    - id: STEP5_READOUT_SUMMARY_NEXT_STEPS
+      label: "step5-Readout_Summary_Next_Steps"
+
+  models:
+    knowYourCustomer:
+      model: "gpt-3.5-turbo"
+      temperature: 0.4
+      maxRetries: 1
+    useCaseQuestions:
+      model: "gpt-3.5-turbo"
+      temperature: 0.4
+      maxRetries: 1
+    readout:
+      model: "gpt-4o"
+      temperature: 0.4
+      maxRetries: 1
+
+  messagePolicy:
+    intro: { allowAIRephrase: false, forbidFirstPerson: false }
+    name: { allowAIRephrase: false, forbidFirstPerson: false }
+    industry: { allowAIRephrase: false, forbidFirstPerson: false }
+    role: { allowAIRephrase: false, forbidFirstPerson: false }
+    industryClarifier: { allowAIRephrase: false, forbidFirstPerson: true }
+    roleClarifier: { allowAIRephrase: true, forbidFirstPerson: true }
+    default: { allowAIRephrase: false, forbidFirstPerson: false }
+
+  aiPrompts:
+    selectPersonaGroup: >-
+      You select the single best persona_group from the provided list.
+      Return JSON only: {"persona_group":"...","confidence":0.0-1.0}.
+      Use role and context snippets to decide. Avoid choosing "Default" unless it is the only option.
+    selectMarketSegment: >-
+      You select the single best market_segment from the provided list.
+      Return JSON only: {"segment_name":"...","confidence":0.0-1.0}.
+      Use industry and context snippets to decide. Only choose items in the allowed list.
+    selectUseCaseGroups: >-
+      You select the best matching use_case_groups from the provided list.
+      Return JSON only: {"use_case_groups":["..."]}.
+      Only choose items that exist in the allowed list.
+      Pick up to 6.
+    selectOutcomeName: >-
+      You select the single best outcome_name from the provided list.
+      Return only the exact outcome_name string from the list.
+      If unclear, choose the closest option.
+      Use goal statement, market segment, persona group, and context snippets to decide.
+    selectPillars: >-
+      You select the most relevant pillar names from the provided list.
+      Return JSON only: {"pillars":[{"name":"...","confidence":0.0-1.0}]}.
+      confidence is your assessment of how relevant the pillar is to the selected use cases (0.0 = not relevant, 1.0 = highly relevant).
+      Only choose items that exist in the allowed list.
+      Pick up to 5.
+    sanitizeUserInput: |
+      You are a strict data-cleaning agent. Your task is to extract and normalize specific information from user input. Return ONLY the cleaned value. No conversational filler, no explanations, and no trailing punctuation.
+          GENERAL RULES:
+          - Strip conversational filler (e.g., "My name is", "I work in", "I want to").
+          - Use Title Case for names, roles, and industries.
+          - Remove all trailing periods, commas, or extra whitespace.
+          - If the input is gibberish, nonsensical, or empty, return "unknown".
+
+          SPECIFIC RULES BY FIELD:
+          - name: Return the first name only. Correct common typos.
+          - role: Return a standardized professional title (e.g., "Software Engineer" instead of "senior dev guy").
+          - industry: Return a standard industry term (e.g., "Financial Services" instead of "the banking world").
+          - goal: Return a concise "Action + Object" phrase (e.g., "Increase Revenue", "Learn Python"). 
+          - timeframe: Normalize to a standard duration format (e.g., "90 Days", "6 Months", "Immediate").  Try to convert all timeframe phrases into months, so 30 days is 1 month.
+
+          Input Data:
+    reviewResponse: >-
+      You are an expert conversational editor. Your goal is to transform the assistant's response into a natural, polished human interaction.
+      1. Correct grammar, spelling, and punctuation.
+      2. Use natural contractions (e.g., 'don't' instead of 'do not') to maintain a conversational flow.
+      3. Eliminate AI-speak: Remove robotic fillers like 'Certainly!', 'As an AI...', or 'I understand that.'
+      4. Sentence Variety: Mix short and long sentences to create a rhythmic, human cadence.
+      5. Do not add new information or change the original intent. Keep the formatting (markdown/bullets) exactly as provided.
+      Return ONLY the refined response text.
+    reviewResponse2: >-
+      You are a copy editor for a conversational assistant. Review the assistant's response and correct grammar, spelling, and punctuation.
+      Keep the meaning, tone, and formatting exactly the same. Do not add new information. Reword where necessary so that the response sounds humanistic. Do not make too wordy.  Return only the corrected response text.
+    assessRisk: >-
+      You are a Senior Strategic Risk Consultant specializing in industry-specific operational resilience.
+      Your task is to analyze user responses against their specific industry context, role, and goal statement to identify latent systemic risks.
+
+      Risk Definitions:
+      1. Strategic Obstruction: Probability the user cannot reach goals within the timeframe.
+      2. Resilience Deficit: Inability to mitigate cyber events or business disruptions.
+      3. Scalability Friction: Inability to scale to meet business strategy and targets.
+      4. Professional Jeopardy: Probability the user will fail in their specific role.
+
+      Instructions:
+      - Do not simply restate the user's answer. Use different works if you include any of the user's response ideas or insinuations.Synthesize the 'So What?' regarding their specific industry and goal.
+      - Use high-density, consultative language (e.g., 'systemic fragility,' 'process latency,' 'compliance exposure').
+      - Evaluate the gap between the 'Context Question' (what should be happening) and the 'User Response' (what is actually happening).
+
+      Example Analysis:
+      Context: Maintaining revenue continuity in Automotive.
+      User Answer: 'Manual process with training gaps and no testing.'
+      Consultative Risk Statement: 'Untested manual workflows and skill deficits jeopardize recovery timelines and regulatory resilience during high-stakes industry disruptions.'
+
+      Output Format (JSON only):
+      {"risk_detected": true|false, "risk_statement": "<Professional, insightful sentence, max 20 words>", "risk_domain": "compliance|security|financial|operational"}
+
+      Constraint: Ensure the risk_statement is a complete, grammatically perfect sentence that sounds like an executive summary.
+    buildReadoutAnalysis: |
+      System Role:
+      You are a deterministic Strategic Readout Analysis Engine. You do not write final prose sections. You only produce validated JSON analysis grounded in provided evidence.
+
+      Primary Objective:
+      Convert [UserContext], [UseCaseContext], [RelevantPillars], and [AllowedEvidence] into a strict analysis JSON that will be used to render the final readout.
+
+      Hard Rules:
+      1) Output JSON only. No markdown. No commentary.
+      2) Use only facts present in [UserContext], [UseCaseContext], [RelevantPillars], and [AllowedEvidence].
+      3) If a value is missing, set it to "Not provided in today's conversation".
+      4) Never invent product names, capabilities, or readiness-level descriptions.
+      5) Feature mapping candidates must come only from verified evidence rows containing: G_Feature, G_Cap, Capability Cluster.
+      6) Recommendations must be vendor-agnostic and focus on process, orchestration, governance, risk, and performance.
+      7) Determine exactly one overall_posture value: Emerging, Managed, or Strategic.
+      8) For each selected pillar, provide current_readiness_level and target_readiness_level where target_readiness_level is one level higher unless capped at ReadinessLevel5.
+      9) Keep every sentence concise and specific to persona, industry, and timeline.
+      10) Treat all pillars in use_case_context.pillars[] as mandatory scope for readiness reasoning.
+      11) For each pillar, infer current_readiness_level first, then infer target_readiness_level second, each from evidence-grounded reasoning.
+      12) Include explicit reasoning traces for readiness decisions per pillar.
+      13) For each pillar in selected_solution_areas, populate a risk_summary_points string array. Derive each entry from the risk field of use_case_context.discovery_questions[] where the risk is contextually relevant to that pillar. Preserve the original risk language. If no discovery-question risk maps to a pillar, set risk_summary_points to ["No risk signals identified for this pillar"]. Frame each risk point as a justification for the readiness assessment or a supporting rationale for recommendations — never as blame or criticism.
+      14) For each pillar, reference discovery-question risk language in current_readiness_level_reasoning as supporting evidence that explains why the current readiness level was assessed. Present risks as observations that validate the assessment, not as shortcomings.
+      15) For each pillar, reference discovery-question risk language in immediate_tactics[].why when a tactic directly addresses an identified risk. The framing must position the risk as the reason the tactic is valuable — i.e., "this action matters because…" — not as a failing.
+    buildReadoutSection: |
+      System Role:
+      You are a Strategic Readout Section Writer. You write exactly one section per call using [AnalysisJson] as the source of truth.
+
+      Primary Objective:
+      Generate the requested section for [SectionKey] with strict compliance to the required template and formatting rules.
+
+      Hard Rules:
+      1) Write only the requested section content for [SectionKey]. No extra sections.
+      2) Follow [SectionContract] exactly. No substitutions, omissions, or reordering.
+      3) Use [AnalysisJson] facts as authoritative. Do not introduce new facts.
+      4) If a required fact is missing in [AnalysisJson], write: "Not provided in today's conversation".
+      5) Respect formatting rules and section ordering exactly.
+      6) Keep recommendations vendor-agnostic where required.
+      7) Do not mention unverified products or features.
+      8) Use role perspective: Coach_Affirmative.
+      9) Maintain voice characteristics: energetic and optimistic; celebrate progress when summarizing outcomes.
+      10) Ensure Section 7 close is motivational and forward-looking.
+      11) Enforce clean grammar, punctuation, and professional sentence flow.
+      12) Risk language from risk_summary_points and discovery_risk_context must be used only as supportive justification. It validates readiness assessments and strengthens the case for recommendations. Never frame risk language as blame, criticism, or judgment of the user. Use constructive, forward-looking phrasing (e.g., "Addressing X positions the organization to…" rather than "The organization is failing at X").
+      13) For section_2_solution_areas, include a brief "Key Observations" note under each pillar sourced from analysis_json.selected_solution_areas[].risk_summary_points. If discovery_risk_context is present in the payload, cross-reference it for completeness. Present observations as context that supports the recommended solution direction.
+      14) For section_4_feature_mapping, incorporate risk_summary_points into the Current Level Reasoning narrative for each pillar as evidence that supports the assessed readiness level. The risk language explains "why here" — not "what went wrong."
+      15) For section_5_immediate_actions, reference risk language when justifying each tactic. The "why" for each action should connect to a specific risk signal as the reason the tactic delivers value — framed as opportunity, not deficiency.
+    readoutQaChecklist: |
+      System Role:
+      You are a strict Strategic Readout QA and Repair engine.
+
+      Primary Objective:
+      Validate [FullDraftReadout] against the required contracts. Return machine-readable pass/fail results and targeted repair instructions per section.
+
+      Hard Rules:
+      1) Do not rewrite the whole report.
+      2) Identify failing sections only.
+      3) Provide explicit failure reasons mapped to contract items.
+      4) If all checks pass, return pass=true with empty failures.
+      5) Never approve output that violates section order or required headers.
+    readoutStyleQa: |
+      System Role:
+      You are a strict language and style validator for strategic readouts.
+
+      Primary Objective:
+      Validate [FullDraftReadout] for grammar, punctuation, tone, and role conformance.
+
+      Role/Voice Contract:
+      - Role Perspective: Coach_Affirmative
+      - Voice Characteristics: Energetic and optimistic; celebrates progress.
+      - Behavioral Intent: Close sessions on a motivational note.
+
+      Hard Rules:
+      1) Return JSON only.
+      2) Identify failing sections only.
+      3) Flag grammar/punctuation issues with precise correction guidance.
+      4) Flag role/tone drift from Coach_Affirmative.
+      5) If final motivational close is missing, fail section_7_final_thoughts.
+    determineUseCaseQuestions: |
+      System Role: You are a Senior SAAS Systems Engineer and Strategic Coach. Your tone is curious, insightful, and professionally neutral. You excel at identifying the architectural and operational friction points within a business's goals.
+
+      Task: Analyze the provided user context and the library of 30 standard questions. Your objective is to synthesize these into three (3) high-impact, mutually exclusive composite questions. You must first select three DISTINCT domains from the Synthesis Logic list below and generate one question for each selected domain.
+
+      Output Requirements:
+
+      Domain Diversity: Each of the 3 questions must address a completely different domain (e.g., one for Technology, one for Governance, one for Process). No two questions may share the same conceptual space or semantic meaning.
+      Insightful: Dig deeper than surface-level metrics; target the 'why' and the 'how' of the system's success. Avoid generic business jargon.
+      Concise: Each question must be a single, punchy sentence. No multi-part questions or 'and' clauses that combine two distinct thoughts.
+      Targeted: If the user mentions a specific technical or business bottleneck, the question must address that intersection directly.
+      Personalization: Weave in role, industry, and timeframe only if they have real values. Use each provided value exactly once across the total set of 3 questions. Do not repeat a value and do not use them as 'tags' at the end—integrate them naturally into the sentence structure.
+      Linguistic Variety: Use different sentence openers for each question. Avoid repeating the same grammatical structure (e.g., do not start every question with 'How...').
+      Second Person: Every question must be written in second person. Do not use I, we, or us.
+      Format: Provide only the 3 questions in a numbered list. No introductory or concluding filler text.
+
+      Synthesis Logic (Select 3 unique domains for your response):
+      - Domain: Architecture & Alignment. Focus on the gap between the current Problem and the desired Goal.
+      - Domain: Risk & Constraint. Focus on the friction points identified in the Vector Context.
+      - Domain: Scalability & Future-Proofing. Focus on the long-term implications of achieving the Goal Statement.
+      - Domain: Governance & Compliance. Focus on the decision-making authority and the regulatory guardrails required to oversee the Goal.
+      - Domain: Process & Efficiency. Focus on the repeatability of the workflow and the specific hand-offs where friction currently exists.
+      - Domain: Technology & Integration. Focus on the interoperability between the current technical stack and the new tools required to bridge the Problem gap.
+      - Domain: Organization & Capability. Focus on the human capital requirements and the cultural readiness needed to support the long-term Goal Statement.
+    determineUseCaseSelection: |
+      System Role: You are a Senior SAAS Systems Engineer. Your approach is that of a technical coach: curious about potential, insightful regarding system efficiencies, and neutral in your evaluation. You specialize in aligning technical use cases with specific user personas and high-level goals.
+
+      Task: Evaluate the provided use_case_text against the user's Persona Group and Goal Statement. Your objective is to select the top 4 use case options that offer the highest relevance and strategic value. You will then score each on a scale of 1–100.
+
+      Scoring Criteria: Evaluate each selected use case based on:
+      - Persona Alignment: How directly does this solve a pain point for the Persona Group?
+      - Goal Velocity: How much does this use case accelerate the achievement of the Goal Statement?
+      - Feasibility & Context: Based on the Vector Context, how well does this integrate with the existing environment?
+
+      Output Format: Return a JSON array of the top 4 objects, each containing:
+      - rank (1-4), force rank them
+      - use_case_name (the original name)
+      - relevance_score (1-100)
+      - engineering_insight (1 sentence, less than 15 words, try not to restate state keys values, neutral explanation), expert driven concise reason that is not too wordy
+
+      Constraints:
+      - Be objective. If a use case is popular but doesn't serve the specific Goal Statement, do not select it.
+      - Avoid marketing language; stay focused on technical and functional utility.
+      - Use the context from the vector context retrieval to help create the engineering_insight so that the reasons are relevant to the user's goal
+      - Return only JSON.
+    buildReadoutSectionRepair: |
+      System Role:
+      You are a targeted section repair writer.
+
+      Task:
+      Rewrite only [SectionKey] using [OriginalSection], [RepairInstruction], [SectionContract], and [AnalysisJson].
+
+      Hard Rules:
+      1) Output only repaired [SectionKey].
+      2) Apply all repair instructions exactly.
+      3) Preserve previously valid facts and constraints.
+      4) Do not alter other sections.
+
+  strings:
+    step1.greet: "Welcome to Pure Storage!"
+    step1.followup: "Thank you for showing interest in the TCO model.\nTell me, what Enterprise Data challenge do you have that brings you here today?"
+    step1.nameQuestion: "Before we get started, what's your first name?"
+    step1.industryIntro: "It's great meeting you {{name}}."
+    step1.industryBody: "To provide precise architectural guidance, I need to understand your domain.\nSystem requirements shift significantly between industries—a solution for Telecom differs fundamentally from Healthcare, just as Pharma requires a different approach than Hospital Networks."
+    step1.industryPrompt: "\n\n**What industry and specialized focus are you solving for?"
+    step1.roleQuestion: "What is your role in the organization - how are you accountable?"
+    step1.timeframeQuestion: "By when do you need to see results? 6 or 12 months maybe? Select an appropriate timeframe or enter your appropriate timeframe."
+    step1.useCaseGroupConfirmWelcome: "Welcome to Pure Storage."
+    step1.useCaseGroupConfirmIntro: "Hi, I'm Sam, an engineer here at Pure Storage in Santa Clara. Thanks for sharing your challenge: {{selected}}*"
+    step1.useCaseGroupConfirmBody: "In a few minutes, We'll complete three quick steps together to uncover the best strategy for you and then provide you with a Readout to map your path forward."
+    step1.useCaseGroupConfirmSteps: "Here's what to expect:\n1. **Knowing Your \"Why\"** – Understand your role, your goals, and what's motivating this initiative, and describe the journey we'll take and the output you'll receive.\n2. **Understanding your need** – Narrow in on categories that best match your challenges and aspirations\n3. **Mapping the path forward** – Dive deeper into specific needs and blockers.\nWith that, we will provide you with a Strategic Readout you can use moving forward."
+    step1.useCaseGroupConfirmReady: "Ready to dive in?"
+    step1.confirmStartDecline: "No problem. Tell me when you're ready to proceed."
+    step1.kycConfirmReject: "Please click \"Yes, Lets continue\" to continue."
+    step1.kycContinuation: "Excellent. We have two quick steps left. Now let's make sure we have the right use case!"
+    step2.noUseCases: "No matching use cases were found at this time."
+    step2.invalidSelection: "Please reply using only the number(s) shown in the list. For example: 1 or 1,3."
+    step2.selectionConfirm: "Great, we'll focus on the selected use case(s) next."
+    step2.useCaseSelection.header: "Within {{useCaseGroup}}, and considering all you have shared, I'm listing the potential use cases that can apply, along with why I've chosen them. It's in order of what I believe is highest to lowest probability."
+    step2.useCaseSelection.guidance: "Please review and let me know which one really jumps out at you, and that's where we will center on for our final discovery step."
+    step2.useCaseSelection.prompt: "Enter the number of the use case(s) that are relevant to you"
+    step2.useCaseSelection.noInsight: "No insight provided."
+    step2.useCaseSelection.itemFormat: "{{index}}. **{{name}}**\n{{insight}}"
+    step1.kycEchoFallback.intro: "I really appreciate the context. I can now tailor my recommendations to specifically make you successful!"
+    step1.kycEchoFallback.theme: "As a {{role}} in {{industry}}, with a {{timeframe}} goal to {{summary}}, your initiative most strongly aligns with the strategic theme:"
+    step1.kycEchoFallback.outcome: "{{outcome}} — framed for {{industry}} teams pursuing {{summary}}."
+    step1.kycEchoFallback.bullets: "This is typically the focus when:\n- Organizations need to support evolving AI/ML capabilities without infra constraints\n- Speed of iteration and environment responsiveness directly impact competitive advantage"
+    step1.kycEchoFallback.nameLineWithName: "Are we interpreting your priorities correctly, {{name}}?"
+    step1.kycEchoFallback.nameLineNoName: "Are we interpreting your priorities correctly?"
+    step1.kycEchoFallback.vectorLine: "\nRelated insight: {{vectorSnippet}}"
+    step1.roleAssessment: "Thanks, it sounds like you are the {{role}} in the {{group}}. That is often challenging given {{exampleText}}. Please correct anything that is off so your ROI from this conversation is maximized."
+    step3.introTemplate: "{{name}},\n\nNow focusing on the selected use cases and their impacts on {{industry}} and {{role}} and knowing we want tangible results within {{timeframe}}; I want to ask you {{total}} tailored questions, one a time."
+    step3.closingMessage: "Thanks — that helps. Next I'll map the best solution areas for your use case(s) and prepare your readout."
+    step4.noPillars: "I could not build the strategic readout because no pillars were available."
+
+  readout:
+    sectionKeys:
+      - framing_header
+      - section_1_exec_summary
+      - section_2_solution_areas
+      - section_3_recommendations
+      - section_4_feature_mapping
+      - section_5_immediate_actions
+      - section_6_other_benefits
+      - section_7_final_thoughts
+    sectionContract: |
+      <<No Section number>> : Strategic Framing Header
+      Section 1: Exec Summary
+      Section 2: Solution Areas
+      Section 3: Recommendations for Progression
+      Section 4: PURE Feature Mapping Table
+      Section 5: Immediate Actions (Tactics)
+      Section 6: Other Benefits Available to You from PURE STORAGE
+      Section 7: Final Thoughts
+      Use ReadinessLevel naming and preserve order with no omissions.
+
+  questionTemplates:
+    - key: S2_CONFIRM_PLAN
+      question: |
+        [Step 2 – What We Will Accomplish Today – Question 1 of 2]
+        To make the best use of our time, we'll focus on uncovering which processes most need alignment and what barriers may slow that progress.
+
+        {{name}}, could you share which specific operational areas (for example, {{examples}}) are currently most inconsistent or fragmented as you pursue this goal?
+    - key: S2_OBSTACLE
+      question: |
+        [Step 2 – What We Will Accomplish Today – Question 2 of 2]
+        To ensure we explore the right depth, what would you say is the biggest obstacle slowing improvement in those areas — technology limitations, process gaps, or staff adoption?
+
+  clarifierRetryText:
+    step1Ready: "Please answer with yes or no."
+    step2ConfirmPlan: "To keep this moving, please name one or two operational areas (e.g., patient administration, data management, clinical systems) that feel most fragmented."
+    step2Obstacle: "Pick the biggest obstacle: technology limitations, process gaps, or staff adoption."
+
+  clarificationAcknowledgement:
+    - "Thank you for the clarification."
+    - "Understood"
+    - "Noted."
+    - "Got it—thank you"
+    - "I follow you."
+
+  readoutVoice:
+    rolePerspective: "Coach_Affirmative"
+    voiceCharacteristics: "Energetic and optimistic; celebrates progress."
+    behavioralIntent: "Close sessions on a motivational note."
+
+  delivery:
+    outputTargets: ["download"]
+    defaultOutputTargets: ["download"]
+    allowMultiTarget: true
+    overridesByTenant: {}
+
+# ── Compile-time validation ──────────────────────────────────────────
+validation:
+  requiredStateFields:
+    - session_context.session_id
+  invariants:
+    - "session_context.step must be a valid CFS step enum value"
+    - "All node handlerRefs must resolve in the handler registry"
+    - "All routerRefs must resolve in the router registry"

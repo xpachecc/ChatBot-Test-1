@@ -1,0 +1,49 @@
+---
+description: Workflow rules that govern how development tasks are approached, verified, and delivered
+globs: 
+alwaysApply: true
+---
+
+# Coding Workflow Preferences
+
+## Scope and Focus
+- Focus only on the areas of code relevant to the task — do not touch unrelated code
+- Before making changes, identify every file and function that could be affected
+- Avoid making major changes to the patterns and architecture of a feature that has shown to work well, unless explicitly instructed
+
+## Understand Before Implementing
+- Read the relevant source files before writing or editing any code
+- Trace the call chain: understand who calls the code you are changing and what it calls downstream
+- When the task is ambiguous or has multiple valid approaches, ask clarifying questions before proceeding rather than guessing
+
+## Incremental Changes
+- Make changes in small, verifiable steps rather than one large batch
+- After each meaningful change, confirm it compiles (`npm run build`) and does not introduce new lint errors
+- If a change turns out to be wrong, revert it cleanly rather than layering fixes on top of fixes
+
+## Testing Workflow
+- Write or update tests for every piece of major functionality you add or change
+- Run the relevant tests after changes (`npm test` or targeted Jest paths) and confirm they pass before moving on
+- When a test fails, determine whether the failure is pre-existing or introduced by your change before attempting a fix
+- Never weaken or delete a passing test to make your code change work — fix the code instead
+
+## Verification Checklist (before declaring a task complete)
+1. TypeScript compiles without new errors (`npm run build`)
+2. All previously passing tests still pass
+3. New functionality has test coverage
+4. No files were accidentally left with debug logging, TODO placeholders, or commented-out code
+
+## Refactoring
+- Refactor files that exceed the line-count guideline in coding-pattern-preferences, but only when the refactoring is low-risk and clearly improves project structure
+- Preserve existing export paths (use re-exports) so that other modules and tests are not broken by file splits
+- Refactoring should never change runtime behavior — confirm with tests
+
+## Error Handling and Debugging
+- When diagnosing a bug, gather evidence first (logs, test output, stack traces) before changing code
+- Fix the root cause, not the symptom — avoid adding workarounds that mask the real issue
+- If a fix requires changing a shared utility or module, assess the impact on all callers before applying it
+
+## Communication
+- When you make a decision that could reasonably go either way, briefly explain your reasoning
+- If a requested change would conflict with an existing rule or break something, flag it and propose alternatives rather than silently proceeding
+- Summarize what was changed and what was verified at the end of a task

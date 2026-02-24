@@ -12,3 +12,12 @@ build/
 # Local domain data (do not commit)
 SundaySky - Domain Vectors v01_06_26.xlsx
 
+
+# LangGraph API
+.langgraph_api
+
+# Cursor debug logs
+.cursor/debug*.log
+
+# npm cache
+.npm-cache/

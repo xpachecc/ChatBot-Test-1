@@ -1,0 +1,47 @@
+---
+description: Technical stack and architecture rules for the Crezia LangGraph chatbot
+globs: 
+alwaysApply: true
+---
+
+# Technical Stack
+
+## Backend
+- Node.js 20+ with TypeScript (ES Modules — `"type": "module"` in package.json)
+- Express.js as the web server framework
+- `tsx` for running TypeScript in development; `tsc` for type-checking only (no compiled output served)
+- Zod for runtime schema validation of conversation state
+
+## Frontend
+- Plain HTML, JavaScript (ES6), and CSS — no SPA framework
+- `index.html` at the project root; static assets served from `public/` (js/, css/)
+- Do not introduce React, Next.js, or any frontend framework without explicit approval
+
+## AI / LLM
+- LangGraph (`@langchain/langgraph`) for orchestrating the multi-step conversation as a state graph
+- OpenAI (`@langchain/openai`) for chat completions (GPT-4o-mini, GPT-3.5-turbo) and embeddings (text-embedding-3-small)
+- LangGraph Studio available via `npm run studio` for local graph development and debugging
+- LangSmith tracing is optional (enabled via `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`)
+
+## Data
+- Supabase (PostgreSQL + pgvector) for all persistent storage and vector search — never JSON file storage
+- Supabase RPC (`match_documents`) for similarity search against document embeddings
+- Separate databases / environments for dev, test, and prod
+
+## External Services
+- Firecrawl (`@firecrawl/sdk`) for internet search and web scraping (industry clarification, sub-industry discovery)
+- Firecrawl access is gated by a URL allow-list policy (`firecrawlPolicy.ts`)
+
+## Testing
+- Jest with ts-jest (ESM preset) for all tests
+- Tests live in `src/langgraph/__tests__/`
+- OpenAI and Firecrawl SDK are mocked in tests (see `jest.setup.ts` and `jest.config.ts` moduleNameMapper)
+- Never mock data for dev or prod — mocking is for tests only
+
+## Environment Variables (required)
+- `OPENAI_API_KEY` — OpenAI API access
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY` — Supabase authentication
+- `FIRECRAWL_API_KEY` — Firecrawl web search access (required for internet search features)
+- `PORT` — server port (optional, defaults to 3000)
+- Never overwrite the `.env` file without asking and confirming first

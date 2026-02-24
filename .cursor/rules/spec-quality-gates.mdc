@@ -1,0 +1,17 @@
+---
+description: Quality gates for scenario-based specs
+globs: specs/**/*.md
+alwaysApply: false
+---
+
+# Spec Quality Gates
+
+- Spec must include: Summary, Functional Requirements, Possible Edge Cases, Acceptance Criteria, Open Questions, and Testing Guidelines.
+- Requirements must be testable and outcome-oriented.
+- Acceptance criteria must be observable with clear pass/fail behavior.
+- Scenarios must cover:
+  - primary success path
+  - at least one valid variation
+  - realistic failure and edge conditions
+- Avoid technical implementation details, code samples, and architecture decisions unless explicitly requested.
+- If convergence is blocked, list decision-ready open questions.

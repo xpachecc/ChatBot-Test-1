@@ -1,0 +1,13 @@
+---
+description: Enforce spec-first planning workflow with spec-writer
+alwaysApply: true
+---
+
+# Spec-First Workflow
+
+- When user intent is planning, requirements, or specification, use the `spec-writer` skill.
+- Gather missing inputs before drafting: `feature_name` (required), plus business intent, outcomes, constraints, assumptions, dependencies, out-of-scope, and success metrics.
+- Save specs to `specs/<feature-slug>.md`.
+- Use `_specs/spec_template.md` headings exactly.
+- Do not start implementation until the spec is approved, unless the user explicitly asks to proceed.
+- Final planning response should be concise and include the spec file path.
