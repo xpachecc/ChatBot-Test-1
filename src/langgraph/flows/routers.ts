@@ -15,11 +15,11 @@ export function routeUseCaseQuestionLoop(state: CfsState): string {
   return "end";
 }
 
-// Pillar loop router: when readout ready, display it; else build it.
+// Pillar loop router: when readout ready, end; else build it (nodeBuildReadout -> nodeDisplayReadout via static).
 export function routePillarsLoop(state: CfsState): string {
   const readoutStatus = (state as any).readout_context?.status as string | undefined;
   const hasReadout = readoutStatus === "ready";
-  if (hasReadout) return "nodeDisplayReadout";
+  if (hasReadout) return "end";
   if (state.session_context?.awaiting_user) return "end";
   return "nodeBuildReadout";
 }
@@ -58,7 +58,7 @@ export function routeInitFlow(state: CfsState): string {
       state.session_context.step === CFS_STEPS.STEP4_BUILD_READOUT &&
       !hasReadout
     ) {
-      destination = "routePillarsLoop";
+      destination = "nodeBuildReadout";
     } else if (state.session_context.awaiting_user) {
       if (state.session_context.last_question_key === "S1_USE_CASE_GROUP") destination = "ingestUseCaseGroupSelection";
       else if (state.session_context.last_question_key === "CONFIRM_START") destination = "ingestConfirmStart";

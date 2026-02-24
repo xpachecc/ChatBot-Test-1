@@ -184,16 +184,15 @@ transitions:
         ingestTimeframe: ingestTimeframe
         ingestKycConfirm: ingestKycConfirm
         ingestUseCaseSelection: ingestUseCaseSelection
-        routePillarsLoop: routePillarsLoop
         nodeAskUseCaseQuestions: nodeAskUseCaseQuestions
         nodeDeterminePillars: nodeDeterminePillars
+        nodeBuildReadout: nodeBuildReadout
         end: "__end__"
 
     - from: routePillarsLoop
       routerRef: "cfs.routePillarsLoop"
       destinations:
         nodeBuildReadout: nodeBuildReadout
-        nodeDisplayReadout: nodeDisplayReadout
         end: "__end__"
 
   static:

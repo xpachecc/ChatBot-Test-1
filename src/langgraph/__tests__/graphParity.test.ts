@@ -166,9 +166,9 @@ describe("schema topology", () => {
     expect(dsl.transitions.static.length).toBe(19);
   });
 
-  it("DSL has 3 conditional transition groups", () => {
+  it("DSL has 2 conditional transition groups", () => {
     const dsl = loadGraphDsl(CFS_YAML);
-    expect(dsl.transitions.conditional.length).toBe(3);
+    expect(dsl.transitions.conditional.length).toBe(2);
   });
 });
 
