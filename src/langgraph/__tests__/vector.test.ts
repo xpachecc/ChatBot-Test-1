@@ -1,5 +1,5 @@
 import { CfsStateSchema } from "../infra.js";
-import { buildQuerySignature, buildVectorFilters } from "../vector.js";
+import { buildQuerySignature, buildVectorFilters } from "../core/services/vector.js";
 
 describe("vector helpers", () => {
   it("builds tenant-scoped filters with available fields", () => {

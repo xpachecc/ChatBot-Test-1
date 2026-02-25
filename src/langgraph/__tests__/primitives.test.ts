@@ -62,16 +62,6 @@ describe("primitives", () => {
     expect(result.use_case_context?.objective_normalized).toBe("Reduce cost of operations");
   });
 
-  it("ProbeRisk logs and returns session update", () => {
-    const state = CfsStateSchema.parse({
-      session_context: { session_id: "s1", primitive_counter: 0 },
-    });
-
-    const result = PrimitivesInstance.ProbeRisk.run(state);
-    expect(result.session_context?.primitive_counter).toBe(1);
-    expect(result.session_context?.primitive_log?.length).toBe(1);
-  });
-
   it("selectPersonaGroup falls back to closest non-default without AI", async () => {
     const result = await selectPersonaGroup({
       role: "Operations Lead",

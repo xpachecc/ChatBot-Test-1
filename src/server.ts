@@ -9,8 +9,8 @@ import {
   runTurn,
   type CfsState,
 } from "./langgraph/graph.js";
-import { computeFlowProgress } from "./langgraph/utilities.js";
-import { getOptionsForQuestionKey } from "./langgraph/flows/chatOptions.js";
+import { computeFlowProgress } from "./langgraph/infra.js";
+import { getOptionsForQuestionKey } from "./langgraph/flows/chat-options.js";
 import { resolveAppConfig, getTemplatePath } from "./config/appConfig.js";
 
 dotenv.config();

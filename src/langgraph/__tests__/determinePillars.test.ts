@@ -86,15 +86,17 @@ async function runToPillars(graphApp: ReturnType<typeof buildCfsGraph>) {
   const afterConfirmRole = await runTurn(graphApp, afterRole, "yes");
   const afterTimeframe = await runTurn(graphApp, afterConfirmRole, "6 months");
   const afterKycConfirm = await runTurn(graphApp, afterTimeframe, "yes");
-  const afterUseCaseSelectionIngest = await runTurn(graphApp, afterKycConfirm, "1");
-  const afterUseCaseSelection = await runTurn(graphApp, afterUseCaseSelectionIngest, undefined);
+  // User submits "1" -> ingestUseCaseSelection -> nodeDetermineUseCaseQuestions -> nodeAskUseCaseQuestions (same turn)
+  const afterUseCaseSelection = await runTurn(graphApp, afterKycConfirm, "1");
   const firstPrompt = lastAIMessage(afterUseCaseSelection)?.content?.toString() ?? "";
   if (!firstPrompt.includes("Question 1 of 3:")) {
     throw new Error("Discovery questions did not start as expected.");
   }
   const afterFirst = await runTurn(graphApp, afterUseCaseSelection, "First response");
   const afterSecond = await runTurn(graphApp, afterFirst, "Second response");
-  return runTurn(graphApp, afterSecond, "Third response");
+  const afterThird = await runTurn(graphApp, afterSecond, "Third response");
+  // One more turn triggers routeInitFlow -> nodeDeterminePillars
+  return runTurn(graphApp, afterThird, undefined);
 }
 
 describe("nodeDeterminePillars", () => {

@@ -11,7 +11,7 @@ const mockGetSubIndustrySuggestions = jest.fn(async () => ({
     suggestions: ["Provider Management", "Managed Care", "Ambulatory Care"],
   }));
 
-jest.unstable_mockModule("../internetSearch.js", () => ({
+jest.unstable_mockModule("../core/services/internet-search.js", () => ({
   isIndustryVague: mockIsIndustryVague,
   getSubIndustrySuggestions: mockGetSubIndustrySuggestions,
   nodeInternetSearch: jest.fn(),

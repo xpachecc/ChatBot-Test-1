@@ -1,6 +1,6 @@
 import type { CfsState } from "../state.js";
-import { lastHumanMessage } from "../utilities.js";
-import { S3_DISCOVERY_QUESTION_KEY, CFS_STEPS } from "./stepFlowConfig.js";
+import { lastHumanMessage } from "../infra.js";
+import { S3_DISCOVERY_QUESTION_KEY, CFS_STEPS } from "./step-flow-config.js";
 
 // Discovery question loop router: ends the turn while awaiting user input,
 // ends the turn when all questions are answered (so user sees Step 3 at 100%),
@@ -13,6 +13,13 @@ export function routeUseCaseQuestionLoop(state: CfsState): string {
   // Next turn will run nodeDeterminePillars (via routeInitFlow -> routeUseCaseQuestionLoop).
   if (trace.includes("ask_use_case_questions:complete")) return "end";
   return "end";
+}
+
+// After ingestUseCaseSelection: if we have selected use cases, proceed to determine questions; else end (retry on invalid input).
+export function routeAfterIngestUseCaseSelection(state: CfsState): string {
+  const selected = state.use_case_context?.selected_use_cases;
+  const hasSelection = Array.isArray(selected) && selected.length > 0;
+  return hasSelection ? "nodeDetermineUseCaseQuestions" : "end";
 }
 
 // Pillar loop router: when readout ready, end; else build it (nodeBuildReadout -> nodeDisplayReadout via static).

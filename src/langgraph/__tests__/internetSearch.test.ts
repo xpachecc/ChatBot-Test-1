@@ -5,19 +5,19 @@ const mockSafeSearch = jest.fn(async (_query: string, _mode: string) => {
   return [] as Array<{ title: string; description: string; url: string }>;
 });
 
-jest.unstable_mockModule("../firecrawlService.js", () => ({
+jest.unstable_mockModule("../core/services/firecrawl.js", () => ({
   FirecrawlService: class {
     safeSearch = mockSafeSearch;
     constructor(_apiKey: string) {}
   },
 }));
 
-let SUB_INDUSTRY_PROMPT: typeof import("../internetSearch.js").SUB_INDUSTRY_PROMPT;
-let nodeInternetSearch: typeof import("../internetSearch.js").nodeInternetSearch;
-let rankInternetResults: typeof import("../internetSearch.js").rankInternetResults;
+let SUB_INDUSTRY_PROMPT: typeof import("../core/services/internet-search.js").SUB_INDUSTRY_PROMPT;
+let nodeInternetSearch: typeof import("../core/services/internet-search.js").nodeInternetSearch;
+let rankInternetResults: typeof import("../core/services/internet-search.js").rankInternetResults;
 
 beforeAll(async () => {
-  ({ SUB_INDUSTRY_PROMPT, nodeInternetSearch, rankInternetResults } = await import("../internetSearch.js"));
+  ({ SUB_INDUSTRY_PROMPT, nodeInternetSearch, rankInternetResults } = await import("../core/services/internet-search.js"));
 });
 
 describe("internet search utility", () => {

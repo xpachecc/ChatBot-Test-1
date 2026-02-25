@@ -1,10 +1,10 @@
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildGraphFromSchema, createInitialState, runTurn } from "../graph.js";
-import { registerCfsHandlers, resetCfsRegistration } from "../schema/cfsHandlers.js";
-import { clearRegistry, getRegisteredHandlerIds, getRegisteredRouterIds, getRegisteredConfigFnIds } from "../schema/handlerRegistry.js";
-import { loadGraphDsl, parseGraphDslFromText } from "../schema/graphLoader.js";
-import { compileGraphFromDsl, buildGraphMessagingConfigFromDsl } from "../schema/graphCompiler.js";
+import { registerCfsHandlers, resetCfsRegistration } from "../schema/cfs-handlers.js";
+import { clearRegistry, getRegisteredHandlerIds, getRegisteredRouterIds, getRegisteredConfigFnIds } from "../schema/handler-registry.js";
+import { loadGraphDsl, parseGraphDslFromText } from "../schema/graph-loader.js";
+import { compileGraphFromDsl, buildGraphMessagingConfigFromDsl } from "../schema/graph-compiler.js";
 import { lastAIMessage } from "../infra.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,6 +87,7 @@ describe("handler registry", () => {
     expect(routers).toContain("cfs.routeInitFlow");
     expect(routers).toContain("cfs.routeUseCaseQuestionLoop");
     expect(routers).toContain("cfs.routePillarsLoop");
+    expect(routers).toContain("cfs.routeAfterIngestUseCaseSelection");
   });
 
   it("is idempotent on repeated registration", () => {
@@ -127,6 +128,7 @@ describe("compiler preflight", () => {
 describe("schema topology", () => {
   const EXPECTED_NODE_IDS = new Set([
     "routeInitFlow",
+    "routeAfterIngestUseCaseSelection",
     "routePillarsLoop",
     "sendIntroAndAskUseCaseGroup",
     "askUserName",
@@ -166,9 +168,9 @@ describe("schema topology", () => {
     expect(dsl.transitions.static.length).toBe(20);
   });
 
-  it("DSL has 2 conditional transition groups", () => {
+  it("DSL has 3 conditional transition groups", () => {
     const dsl = loadGraphDsl(CFS_YAML);
-    expect(dsl.transitions.conditional.length).toBe(2);
+    expect(dsl.transitions.conditional.length).toBe(3);
   });
 });
 

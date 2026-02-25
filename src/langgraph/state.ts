@@ -49,7 +49,7 @@ export type GraphMessagingConfig = {
   aiPrompts: {
     selectPersonaGroup: string;
     selectMarketSegment: string;
-    selectUseCaseGroups: string;
+    selectUseCaseGroups?: string;
     selectOutcomeName: string;
     selectPillars: string;
     sanitizeUserInput: string;
@@ -127,10 +127,7 @@ export type PrimitiveName =
   | "IngestDispatcher"
   | "VectorSelect"
   | "MultiSectionDocBuilder"
-  | "AiRecap"
-  | "CascadingResolve"
   | "NumericSelectionIngest"
-  | "ResolveAndConfirm"
   | "DocStyleQa";
 
 // Lightweight index of user phrases/entities for reuse.

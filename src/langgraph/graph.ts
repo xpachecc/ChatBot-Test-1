@@ -2,15 +2,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { CfsStateSchema, type CfsState, type GraphMessagingConfig, type MessageType } from "./state.js";
-import { createInitialState, requireGraphMessagingConfig, prependClarificationAcknowledgement } from "./utilities.js";
-import { reviewResponseWithAI } from "./aiHelpers.js";
-import { registerCfsHandlers } from "./schema/cfsHandlers.js";
-import { loadAndCompileGraph } from "./schema/graphLoader.js";
-import type { CompileResult } from "./schema/graphCompiler.js";
+import { createInitialState, requireGraphMessagingConfig, prependClarificationAcknowledgement } from "./infra.js";
+import { reviewResponseWithAI } from "./core/guards/review.js";
+import { registerCfsHandlers } from "./schema/cfs-handlers.js";
+import { loadAndCompileGraph } from "./schema/graph-loader.js";
+import type { CompileResult } from "./schema/graph-compiler.js";
 
 export type { CfsState } from "./state.js";
 export { CfsStateSchema } from "./state.js";
-export { createInitialState } from "./utilities.js";
+export { createInitialState } from "./infra.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

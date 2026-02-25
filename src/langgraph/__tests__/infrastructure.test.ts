@@ -1,25 +1,26 @@
 import { jest, describe, it, expect, beforeAll } from "@jest/globals";
 import { CfsStateSchema, setGraphMessagingConfig } from "../infra.js";
+import { mergeStatePatch, patchSessionContext } from "../core/helpers/state.js";
 import {
-  mergeStatePatch,
-  patchSessionContext,
   normalizeOptionalString,
-  truncateTextToWordLimit,
+  normalizePillarValues,
+  normalizeUseCasePillarEntries,
+  mergeDiscoveryQuestions,
+  normalizeDiscoveryQuestions,
+  buildCaseInsensitiveLookupMap,
+} from "../core/helpers/normalization.js";
+import { truncateTextToWordLimit, sanitizeDiscoveryAnswer } from "../core/helpers/text.js";
+import {
   parseNumericSelectionIndices,
   sanitizeNumericSelectionInput,
-  isAffirmativeAnswer,
-  mergeDiscoveryQuestions,
-  normalizeUseCasePillarEntries,
   parsePillarsFromAi,
   parseCompositeQuestions,
-  normalizeDiscoveryQuestions,
-  sanitizeDiscoveryAnswer,
-  normalizePillarValues,
-  buildCaseInsensitiveLookupMap,
   extractStringValuesFromMixedArray,
-  buildCanonicalReadoutDocument,
-} from "../utilities.js";
-import { invokeChatModelWithFallback, resolvePersonaGroupFromRole } from "../aiHelpers.js";
+} from "../core/helpers/parsing.js";
+import { isAffirmativeAnswer } from "../core/helpers/sentiment.js";
+import { buildCanonicalReadoutDocument } from "../core/helpers/template.js";
+import { invokeChatModelWithFallback } from "../core/services/ai/invoke.js";
+import { resolvePersonaGroupFromRole } from "../core/services/ai/resolve-persona.js";
 
 const testGraphMessagingConfig = {
   exampleGenerator: () => [],

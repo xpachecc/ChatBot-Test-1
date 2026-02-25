@@ -1,6 +1,6 @@
 import { jest } from "@jest/globals";
 
-jest.unstable_mockModule("../personaGroups.js", () => ({
+jest.unstable_mockModule("../core/services/persona-groups.js", () => ({
   getUseCaseGroups: jest.fn(async () => [
     "Data Governance",
     "Cloud Migration",
@@ -10,8 +10,9 @@ jest.unstable_mockModule("../personaGroups.js", () => ({
 }));
 
 const { CfsStateSchema } = await import("../state.js");
-const { getOptionsForQuestionKey } = await import("../flows/chatOptions.js");
-const { computeFlowProgress, setGraphMessagingConfig, clearGraphMessagingConfig } = await import("../utilities.js");
+const { getOptionsForQuestionKey } = await import("../flows/chat-options.js");
+const { computeFlowProgress } = await import("../infra.js");
+const { setGraphMessagingConfig, clearGraphMessagingConfig } = await import("../core/config/messaging.js");
 
 function makeState(overrides: Record<string, unknown> = {}) {
   return CfsStateSchema.parse({

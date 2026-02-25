@@ -1,16 +1,17 @@
 import { jest } from "@jest/globals";
 
-let interpolate: typeof import("../utilities.js").interpolate;
-let configString: typeof import("../utilities.js").configString;
-let buildDeterministicScores: typeof import("../utilities.js").buildDeterministicScores;
-let buildFallbackFromSchema: typeof import("../utilities.js").buildFallbackFromSchema;
-let setGraphMessagingConfig: typeof import("../utilities.js").setGraphMessagingConfig;
-let clearGraphMessagingConfig: typeof import("../utilities.js").clearGraphMessagingConfig;
+let interpolate: typeof import("../core/helpers/template.js").interpolate;
+let configString: typeof import("../core/helpers/template.js").configString;
+let buildDeterministicScores: typeof import("../core/helpers/template.js").buildDeterministicScores;
+let buildFallbackFromSchema: typeof import("../core/helpers/template.js").buildFallbackFromSchema;
+let setGraphMessagingConfig: typeof import("../core/config/messaging.js").setGraphMessagingConfig;
+let clearGraphMessagingConfig: typeof import("../core/config/messaging.js").clearGraphMessagingConfig;
 let createInitialState: typeof import("../graph.js").createInitialState;
 
 beforeAll(async () => {
-  ({ interpolate, configString, buildDeterministicScores, buildFallbackFromSchema, setGraphMessagingConfig, clearGraphMessagingConfig } =
-    await import("../utilities.js"));
+  ({ interpolate, configString, buildDeterministicScores, buildFallbackFromSchema } =
+    await import("../core/helpers/template.js"));
+  ({ setGraphMessagingConfig, clearGraphMessagingConfig } = await import("../core/config/messaging.js"));
   ({ createInitialState } = await import("../graph.js"));
 });
 

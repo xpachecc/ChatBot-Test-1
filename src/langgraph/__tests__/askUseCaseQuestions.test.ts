@@ -39,10 +39,8 @@ async function runToDiscoveryStart(graphApp: ReturnType<typeof buildCfsGraph>) {
   const afterConfirmRole = await runTurn(graphApp, afterRole, "yes");
   const afterTimeframe = await runTurn(graphApp, afterConfirmRole, "6 months");
   const afterKycConfirm = await runTurn(graphApp, afterTimeframe, "yes");
-  const afterUseCaseSelection = await runTurn(graphApp, afterKycConfirm, "1");
-  // nodeDetermineUseCaseQuestions now ends its turn; trigger nodeAskUseCaseQuestions
-  // via routeInitFlow to present the first discovery question.
-  return runTurn(graphApp, afterUseCaseSelection, undefined);
+  // User submits "1" -> ingestUseCaseSelection -> nodeDetermineUseCaseQuestions -> nodeAskUseCaseQuestions (same turn)
+  return runTurn(graphApp, afterKycConfirm, "1");
 }
 
 describe("nodeAskUseCaseQuestions", () => {
@@ -110,8 +108,9 @@ describe("nodeAskUseCaseQuestions", () => {
     expect(response).toBe("Third response");
     expect(afterThird.session_context.awaiting_user).toBe(false);
     expect(afterThird.session_context.last_question_key).toBeNull();
-    // Once the loop completes, the graph should proceed to determine pillars exactly once.
-    expect((afterThird.use_case_context.pillars ?? []).length).toBeGreaterThan(0);
+    // One more turn triggers routeInitFlow -> nodeDeterminePillars
+    const afterPillars = await runTurn(graphApp, afterThird, undefined);
+    expect((afterPillars.use_case_context.pillars ?? []).length).toBeGreaterThan(0);
   });
 
   it("re-prompts on empty responses without advancing", async () => {
