@@ -18,6 +18,7 @@ import {
   requireGraphMessagingConfig,
   prependClarificationAcknowledgement,
   lastAIMessage,
+  detectSentiment,
 } from "./utilities.js";
 import {
   rephraseQuestionWithAI,
@@ -400,17 +401,10 @@ export {
 } from "./aiCallGuardrail.js";
 export { Primitive, AsyncPrimitive } from "./primitiveBase.js";
 
-function detectSentimentForApply(answer: string): "positive" | "neutral" | "concerned" {
-  const lower = answer.toLowerCase();
-  if (/\b(stressed|blocked|stuck|frustrated|urgent|risk|concerned|worried)\b/.test(lower)) return "concerned";
-  if (/\b(great|good|perfect|exactly|yes)\b/.test(lower)) return "positive";
-  return "neutral";
-}
-
 export async function applyUserAnswer(state: CfsState): Promise<Partial<CfsState>> {
   const hm = lastHumanMessage(state);
   const answer = (hm?.content?.toString() ?? "").trim();
-  const sentiment = detectSentimentForApply(answer);
+  const sentiment = detectSentiment(answer);
   const key = state.session_context.last_question_key;
   const updates: Partial<CfsState> = {};
 

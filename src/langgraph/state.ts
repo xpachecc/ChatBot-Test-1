@@ -79,7 +79,14 @@ export type GraphMessagingConfig = {
   meta?: {
     flowTitle: string;
     flowDescription: string;
-    steps: Array<{ key: string; label: string; order: number; countable: boolean; totalQuestions: number }>;
+    steps: Array<{
+      key: string;
+      label: string;
+      order: number;
+      countable: boolean;
+      totalQuestions: number;
+      countingStrategy?: "questionKeyMap" | "useCaseSelect" | "readoutReady" | "dynamicCount";
+    }>;
   };
   overlayPrefixes?: Record<string, string>;
   exampleTemplates?: Record<string, string[]>;
@@ -87,7 +94,9 @@ export type GraphMessagingConfig = {
     questionKeyMap: Record<string, number>;
     dynamicCountField: string;
     dynamicCountStepKey: string;
+    useCaseSelectQuestionKey?: string;
   };
+  options?: Record<string, string[]>;
 };
 
 // Named primitives so we can log and track which routine ran.
@@ -257,6 +266,7 @@ const SessionContextSchema = z.object({
   role_assessment_message: z.string().nullable().default(null),
   role_assessment_examples: z.array(z.string()).default([]),
   archive: z.record(z.any()).nullable().default(null),
+  suggested_options: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 // Stores vector retrieval state and snippets for reuse.

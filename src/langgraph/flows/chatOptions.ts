@@ -1,4 +1,5 @@
 import type { CfsState } from "../state.js";
+import { requireGraphMessagingConfig } from "../utilities.js";
 import { getUseCaseGroups } from "../personaGroups.js";
 
 export interface ChatOptions {
@@ -28,6 +29,18 @@ export async function getOptionsForQuestionKey(
     return { items: ["Continue to readout"] };
   }
   if (!questionKey) return null;
+
+  // Prefer session_context.suggested_options (state), then config.options (YAML), then fallback
+  const suggestedFromState = state.session_context?.suggested_options?.[questionKey];
+  if (suggestedFromState && suggestedFromState.length > 0) return { items: suggestedFromState };
+
+  try {
+    const config = requireGraphMessagingConfig();
+    const configOptions = config.options?.[questionKey];
+    if (configOptions && configOptions.length > 0) return { items: configOptions };
+  } catch {
+    /* config not set */
+  }
 
   const staticItems = STATIC_OPTIONS[questionKey];
   if (staticItems) return { items: staticItems };

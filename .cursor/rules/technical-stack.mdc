@@ -14,7 +14,7 @@ alwaysApply: true
 
 ## Frontend
 - Plain HTML, JavaScript (ES6), and CSS — no SPA framework
-- `index.html` at the project root; static assets served from `public/` (js/, css/)
+- `index.html` and static assets served from `templates/<templateName>/` (configured via app.config.json)
 - Do not introduce React, Next.js, or any frontend framework without explicit approval
 
 ## AI / LLM

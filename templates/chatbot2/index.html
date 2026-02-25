@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discovery Chat (Compact)</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <script src="/js/chat.js" defer></script>
+</head>
+<body>
+  <header class="top-bar">
+    <div class="top-bar__brand">
+      <span class="top-bar__title">Discovery Chat</span>
+    </div>
+    <button class="top-bar__restart" id="restartButton">Restart</button>
+  </header>
+
+  <div class="app-layout">
+    <aside class="progress-pane" id="progressPane">
+      <h2 class="flow-title" id="flowTitle"></h2>
+      <p class="flow-description" id="flowDescription"></p>
+      <ol class="step-list" id="stepList"></ol>
+    </aside>
+    <main class="chat-main">
+      <div class="chat-container">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+          <div class="options-tray" id="optionsTray"></div>
+          <div class="chat-input-container">
+            <input type="text" id="userInput" placeholder="Type your answer..." />
+            <button class="send-btn" id="sendButton" aria-label="Send">Send</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

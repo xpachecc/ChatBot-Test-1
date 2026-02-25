@@ -2,29 +2,30 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
-import { fileURLToPath } from "url";
 import { AIMessage } from "@langchain/core/messages";
 import {
-  buildCfsGraph,
+  buildGraphFromSchema,
   createInitialState,
   runTurn,
   type CfsState,
 } from "./langgraph/graph.js";
 import { computeFlowProgress } from "./langgraph/utilities.js";
 import { getOptionsForQuestionKey } from "./langgraph/flows/chatOptions.js";
+import { resolveAppConfig, getTemplatePath } from "./config/appConfig.js";
 
 dotenv.config();
 
+const appConfig = resolveAppConfig();
+const graphApp = buildGraphFromSchema(appConfig.flowPath);
+const templatePath = getTemplatePath(appConfig.template);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.resolve(__dirname, "../public")));
+app.use(express.static(templatePath));
 
-const graphApp = buildCfsGraph();
 const sessionStore = new Map<string, CfsState>();
 
 const toText = (content: unknown) => {
@@ -39,7 +40,7 @@ const toText = (content: unknown) => {
 };
 
 app.get("/", (_req: Request, res: Response) => {
-  res.sendFile(path.resolve(__dirname, "../index.html"));
+  res.sendFile(path.join(templatePath, "index.html"));
 });
 
 interface ChatRequestBody {

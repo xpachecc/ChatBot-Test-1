@@ -215,7 +215,7 @@ transitions:
     - { from: nodeAskUseCaseQuestions,     to: "__end__" }
     - { from: nodeDeterminePillars,        to: routePillarsLoop }
     - { from: nodeBuildReadout,            to: nodeDisplayReadout }
-    - { from: nodeDisplayReadout,          to: "__end__" }
+    - { from: nodeDisplayReadout,           to: "__end__" }
 
 # ── Routing keys (state paths that drive routing decisions) ──────────
 routingKeys:
@@ -389,7 +389,7 @@ config:
           - name: Return the first name only. Correct common typos.
           - role: Return a standardized professional title (e.g., "Software Engineer" instead of "senior dev guy").
           - industry: Return a standard industry term (e.g., "Financial Services" instead of "the banking world").
-          - goal: Return a concise "Action + Object" phrase (e.g., "Increase Revenue", "Learn Python"). 
+          - goal: Return a concise "Action + Object" phrase (e.g., "Increase Revenue", "Learn Python").
           - timeframe: Normalize to a standard duration format (e.g., "90 Days", "6 Months", "Immediate").  Try to convert all timeframe phrases into months, so 30 days is 1 month.
 
           Input Data:

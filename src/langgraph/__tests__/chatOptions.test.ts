@@ -11,7 +11,7 @@ jest.unstable_mockModule("../personaGroups.js", () => ({
 
 const { CfsStateSchema } = await import("../state.js");
 const { getOptionsForQuestionKey } = await import("../flows/chatOptions.js");
-const { computeFlowProgress } = await import("../utilities.js");
+const { computeFlowProgress, setGraphMessagingConfig, clearGraphMessagingConfig } = await import("../utilities.js");
 
 function makeState(overrides: Record<string, unknown> = {}) {
   return CfsStateSchema.parse({
@@ -96,6 +96,50 @@ describe("getOptionsForQuestionKey", () => {
   it("returns null for unknown question keys", async () => {
     const state = makeState();
     expect(await getOptionsForQuestionKey("UNKNOWN_KEY", state)).toBeNull();
+  });
+
+  it("prefers config.options over STATIC_OPTIONS when set", async () => {
+    setGraphMessagingConfig({
+      options: { CONFIRM_START: ["Oui", "Non"] },
+      exampleGenerator: () => [],
+      overlayPrefix: () => "",
+      clarifierRetryText: { step1Ready: "", step2ConfirmPlan: "", step2Obstacle: "" },
+      clarificationAcknowledgement: [],
+      messagePolicy: {} as any,
+      aiPrompts: {} as any,
+    });
+    try {
+      const state = makeState();
+      const result = await getOptionsForQuestionKey("CONFIRM_START", state);
+      expect(result).toEqual({ items: ["Oui", "Non"] });
+    } finally {
+      clearGraphMessagingConfig();
+    }
+  });
+
+  it("prefers session_context.suggested_options over config", async () => {
+    setGraphMessagingConfig({
+      options: { CONFIRM_START: ["From config"] },
+      exampleGenerator: () => [],
+      overlayPrefix: () => "",
+      clarifierRetryText: { step1Ready: "", step2ConfirmPlan: "", step2Obstacle: "" },
+      clarificationAcknowledgement: [],
+      messagePolicy: {} as any,
+      aiPrompts: {} as any,
+    });
+    try {
+      const state = makeState({
+        session_context: {
+          session_id: "test",
+          step: "STEP1_KNOW_YOUR_CUSTOMER",
+          suggested_options: { CONFIRM_START: ["From state"] },
+        },
+      });
+      const result = await getOptionsForQuestionKey("CONFIRM_START", state);
+      expect(result).toEqual({ items: ["From state"] });
+    } finally {
+      clearGraphMessagingConfig();
+    }
   });
 });
 

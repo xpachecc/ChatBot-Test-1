@@ -160,6 +160,7 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
   const progressRules = cfg.progressRules?.questionKeyMap && Object.keys(cfg.progressRules.questionKeyMap).length > 0
     ? cfg.progressRules
     : undefined;
+  const options = cfg.options && Object.keys(cfg.options).length > 0 ? cfg.options : undefined;
 
   return {
     exampleGenerator: exampleGeneratorFn as GraphMessagingConfig["exampleGenerator"],
@@ -181,6 +182,7 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
     overlayPrefixes,
     exampleTemplates,
     progressRules,
+    options,
   };
 }
 

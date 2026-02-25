@@ -127,7 +127,6 @@ describe("compiler preflight", () => {
 describe("schema topology", () => {
   const EXPECTED_NODE_IDS = new Set([
     "routeInitFlow",
-    "routeUseCaseQuestionLoop",
     "routePillarsLoop",
     "sendIntroAndAskUseCaseGroup",
     "askUserName",
@@ -148,6 +147,7 @@ describe("schema topology", () => {
     "nodeAskUseCaseQuestions",
     "nodeDeterminePillars",
     "nodeBuildReadout",
+    "nodeDisplayReadout",
   ]);
 
   it("DSL declares all expected node IDs", () => {
@@ -161,9 +161,9 @@ describe("schema topology", () => {
     expect(dsl.graph.entrypoint).toBe("routeInitFlow");
   });
 
-  it("DSL has 19 static transitions", () => {
+  it("DSL has 20 static transitions", () => {
     const dsl = loadGraphDsl(CFS_YAML);
-    expect(dsl.transitions.static.length).toBe(19);
+    expect(dsl.transitions.static.length).toBe(20);
   });
 
   it("DSL has 2 conditional transition groups", () => {

@@ -41,12 +41,20 @@ export const ReadoutConfigSchema = z.object({
   sectionContract: z.string().default(""),
 });
 
+export const CountingStrategySchema = z.enum([
+  "questionKeyMap",
+  "useCaseSelect",
+  "readoutReady",
+  "dynamicCount",
+]);
+
 export const FlowStepMetaSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
   order: z.number().int().min(0),
   countable: z.boolean().default(false),
   totalQuestions: z.number().int().min(0).default(0),
+  countingStrategy: CountingStrategySchema.optional(),
 });
 
 export const FlowMetaSchema = z.object({
@@ -59,6 +67,7 @@ export const ProgressRulesSchema = z.object({
   questionKeyMap: z.record(z.string(), z.number()).default({}),
   dynamicCountField: z.string().default(""),
   dynamicCountStepKey: z.string().default(""),
+  useCaseSelectQuestionKey: z.string().default("S3_USE_CASE_SELECT"),
 });
 
 export const GraphConfigSchema = z.object({
@@ -77,6 +86,7 @@ export const GraphConfigSchema = z.object({
   overlayPrefixes: z.record(z.string(), z.string()).default({}),
   exampleTemplates: z.record(z.string(), z.array(z.string())).default({}),
   progressRules: ProgressRulesSchema.default({}),
+  options: z.record(z.string(), z.array(z.string())).default({}),
 });
 
 // ── Node / transition schemas ───────────────────────────────────────

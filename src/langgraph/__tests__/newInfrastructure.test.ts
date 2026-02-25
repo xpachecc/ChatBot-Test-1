@@ -5,10 +5,11 @@ let configString: typeof import("../utilities.js").configString;
 let buildDeterministicScores: typeof import("../utilities.js").buildDeterministicScores;
 let buildFallbackFromSchema: typeof import("../utilities.js").buildFallbackFromSchema;
 let setGraphMessagingConfig: typeof import("../utilities.js").setGraphMessagingConfig;
+let clearGraphMessagingConfig: typeof import("../utilities.js").clearGraphMessagingConfig;
 let createInitialState: typeof import("../graph.js").createInitialState;
 
 beforeAll(async () => {
-  ({ interpolate, configString, buildDeterministicScores, buildFallbackFromSchema, setGraphMessagingConfig } =
+  ({ interpolate, configString, buildDeterministicScores, buildFallbackFromSchema, setGraphMessagingConfig, clearGraphMessagingConfig } =
     await import("../utilities.js"));
   ({ createInitialState } = await import("../graph.js"));
 });
@@ -34,6 +35,10 @@ describe("interpolate", () => {
 });
 
 describe("configString", () => {
+  beforeEach(() => {
+    clearGraphMessagingConfig();
+  });
+
   it("returns fallback when config is not set", () => {
     expect(configString("step1.greet", "fallback")).toBe("fallback");
   });

@@ -98,8 +98,8 @@ Define the minimum verification set to prove correctness:
 
 ## Dependencies and Constraints
 - Dependencies:
-  - Frontend rendering logic in `public/js/chat.js`
-  - Frontend layout/styling in `public/css/styles.css` and `index.html`
+  - Frontend rendering logic in `templates/chatbot1/js/chat.js`
+  - Frontend layout/styling in `templates/chatbot1/css/styles.css` and `templates/chatbot1/index.html`
   - Backend payload contract in `src/server.ts`
   - Graph step and metadata source in `src/langgraph/flows/stepFlowConfig.ts`, `src/langgraph/state.ts`, and related step nodes
 - Constraints:
