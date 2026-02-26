@@ -4,30 +4,23 @@ import {
   nodeAskUserName,
   nodeAskIndustry,
   nodeKnowYourCustomerEcho,
-} from "../flows/step1-know-your-customer-nodes.js";
+} from "../core/nodes/step1-know-your-customer-nodes.js";
 import {
   nodeDetermineUseCases,
   nodeIngestUseCaseSelection,
   nodeDetermineUseCaseQuestions,
-} from "../flows/step2-narrow-down-use-cases-nodes.js";
+} from "../core/nodes/step2-narrow-down-use-cases-nodes.js";
 import {
   nodeAskUseCaseQuestions,
   nodeDeterminePillars,
-} from "../flows/step3-perform-discovery-nodes.js";
+} from "../core/nodes/step3-perform-discovery-nodes.js";
 import {
   nodeBuildReadout,
   nodeDisplayReadout,
-} from "../flows/step4-final-readout-next-steps-nodes.js";
+} from "../core/nodes/step4-final-readout-next-steps-nodes.js";
 import { nodeInternetSearch } from "../core/services/internet-search.js";
-import {
-  routeInitFlow,
-  routeUseCaseQuestionLoop,
-  routePillarsLoop,
-  routeAfterIngestUseCaseSelection,
-} from "../flows/routers.js";
-import { exampleGenerator, overlayPrefix } from "../flows/step-flow-config.js";
 import type { CfsState } from "../state.js";
-import { registerHandler, registerRouter, registerConfigFn } from "./handler-registry.js";
+import { registerHandler } from "./handler-registry.js";
 
 let registered = false;
 
@@ -39,7 +32,7 @@ export function registerCfsHandlers(): void {
   if (registered) return;
   registered = true;
 
-  // Router passthrough nodes (identity — state passes through unchanged)
+  // Router passthrough nodes (identity — state passes through unchanged; routing from YAML)
   registerHandler("cfs.routeInitFlow", (s: CfsState) => s);
   registerHandler("cfs.routeUseCaseQuestionLoop", (s: CfsState) => s);
   registerHandler("cfs.routePillarsLoop", (s: CfsState) => s);
@@ -67,13 +60,5 @@ export function registerCfsHandlers(): void {
   // Step 5: Readout Summary and Next Steps
   registerHandler("step4.nodeDisplayReadout", nodeDisplayReadout);
 
-  // Router functions (conditional edge dispatchers)
-  registerRouter("cfs.routeInitFlow", routeInitFlow);
-  registerRouter("cfs.routeUseCaseQuestionLoop", routeUseCaseQuestionLoop);
-  registerRouter("cfs.routePillarsLoop", routePillarsLoop);
-  registerRouter("cfs.routeAfterIngestUseCaseSelection", routeAfterIngestUseCaseSelection);
-
-  // Dynamic config functions (logic that cannot live in YAML)
-  registerConfigFn("cfs.exampleGenerator", exampleGenerator);
-  registerConfigFn("cfs.overlayPrefix", overlayPrefix);
+  // Routers are resolved from YAML routingRules in graph-compiler; no TS registration needed
 }

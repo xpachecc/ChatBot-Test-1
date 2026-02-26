@@ -1,23 +1,22 @@
-import type { CfsState } from "../state.js";
+import type { CfsState } from "../../state.js";
 import {
   pushAI,
   requireGraphMessagingConfig,
   multiSectionDocBuilder,
   configString,
-} from "../infra.js";
-import { CFS_STEPS } from "./step-flow-config.js";
-import { docStyleQa } from "../core/primitives/compute/index.js";
+} from "../../infra.js";
+import { docStyleQa } from "../primitives/compute/index.js";
 import {
   mergeStatePatch,
   patchSessionContext,
   buildFallbackFromSchema,
-} from "../infra.js";
-import { invokeChatModelWithFallback } from "../core/services/ai/invoke.js";
+} from "../../infra.js";
+import { invokeChatModelWithFallback } from "../services/ai/invoke.js";
 import {
   READOUT_DOCUMENT_TYPES,
   retrieveReadoutDocuments,
-} from "../core/services/vector.js";
-import { getModel } from "../core/config/model-factory.js";
+} from "../services/vector.js";
+import { getModel } from "../config/model-factory.js";
 import {
   buildCanonicalReadoutDocument,
   buildReadinessAssessmentPrompt,
@@ -324,7 +323,7 @@ export async function nodeBuildReadout(state: CfsState): Promise<Partial<CfsStat
       },
       delivery,
     },
-    ...patchSessionContext(state, { step: CFS_STEPS.STEP5_READOUT_SUMMARY_NEXT_STEPS }),
+    ...patchSessionContext(state, { step: "STEP5_READOUT_SUMMARY_NEXT_STEPS" }),
   };
 }
 

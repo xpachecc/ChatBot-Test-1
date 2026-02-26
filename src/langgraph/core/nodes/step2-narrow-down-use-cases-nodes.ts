@@ -1,22 +1,21 @@
-import type { CfsState } from "../state.js";
+import type { CfsState } from "../../state.js";
 import {
   pushAI,
   SpanSanitizer,
   configString,
-} from "../infra.js";
-import { numericSelectionIngest } from "../core/primitives/conversation/index.js";
+} from "../../infra.js";
+import { numericSelectionIngest } from "../primitives/conversation/index.js";
 import {
   mergeStatePatch,
   patchSessionContext,
   buildDeterministicScores,
-} from "../infra.js";
-import { invokeChatModelWithFallback } from "../core/services/ai/invoke.js";
+} from "../../infra.js";
+import { invokeChatModelWithFallback } from "../services/ai/invoke.js";
 import {
   retrieveUseCaseOptions,
   retrieveUseCaseQuestionBank,
-} from "../core/services/vector.js";
-import { CFS_STEPS } from "./step-flow-config.js";
-import { getModel } from "../core/config/model-factory.js";
+} from "../services/vector.js";
+import { getModel } from "../config/model-factory.js";
 import {
   parseCompositeQuestions,
   normalizeDiscoveryQuestions,
@@ -46,7 +45,7 @@ export async function nodeDetermineUseCases(state: CfsState): Promise<Partial<Cf
       ...vectorContextUpdate,
       ...pushAI(state, configString("step2.noUseCases", "No matching use cases were found at this time.")),
       ...patchSessionContext(state, {
-        step: CFS_STEPS.STEP2_NARROW_DOWN_USE_CASES,
+        step: "STEP2_NARROW_DOWN_USE_CASES",
         awaiting_user: false,
         last_question_key: null,
         reason_trace: [...state.session_context.reason_trace, "determine_use_cases:empty_results"],
@@ -104,7 +103,7 @@ export async function nodeDetermineUseCases(state: CfsState): Promise<Partial<Cf
       })),
     },
     ...patchSessionContext(state, {
-      step: CFS_STEPS.STEP2_NARROW_DOWN_USE_CASES,
+      step: "STEP2_NARROW_DOWN_USE_CASES",
       awaiting_user: true,
       last_question_key: "S3_USE_CASE_SELECT",
       reason_trace: [...state.session_context.reason_trace, "determine_use_cases:ready"],

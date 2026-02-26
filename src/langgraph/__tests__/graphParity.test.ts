@@ -2,7 +2,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildGraphFromSchema, createInitialState, runTurn } from "../graph.js";
 import { registerCfsHandlers, resetCfsRegistration } from "../schema/cfs-handlers.js";
-import { clearRegistry, getRegisteredHandlerIds, getRegisteredRouterIds, getRegisteredConfigFnIds } from "../schema/handler-registry.js";
+import { clearRegistry, getRegisteredHandlerIds, getRegisteredConfigFnIds } from "../schema/handler-registry.js";
 import { loadGraphDsl, parseGraphDslFromText } from "../schema/graph-loader.js";
 import { compileGraphFromDsl, buildGraphMessagingConfigFromDsl } from "../schema/graph-compiler.js";
 import { lastAIMessage } from "../infra.js";
@@ -73,21 +73,17 @@ transitions: {}
 // 2. Handler Registry
 // ---------------------------------------------------------------------------
 describe("handler registry", () => {
-  it("registers all CFS handlers and routers", () => {
+  it("registers all CFS handlers (routers resolved from YAML routingRules)", () => {
     registerCfsHandlers();
     const handlers = getRegisteredHandlerIds();
-    const routers = getRegisteredRouterIds();
 
     expect(handlers).toContain("step1.nodeInit");
     expect(handlers).toContain("step2.nodeDetermineUseCases");
     expect(handlers).toContain("step3.nodeAskUseCaseQuestions");
     expect(handlers).toContain("step4.nodeBuildReadout");
     expect(handlers).toContain("cfs.routeInitFlow");
-
-    expect(routers).toContain("cfs.routeInitFlow");
-    expect(routers).toContain("cfs.routeUseCaseQuestionLoop");
-    expect(routers).toContain("cfs.routePillarsLoop");
-    expect(routers).toContain("cfs.routeAfterIngestUseCaseSelection");
+    expect(handlers).toContain("cfs.routePillarsLoop");
+    expect(handlers).toContain("cfs.routeAfterIngestUseCaseSelection");
   });
 
   it("is idempotent on repeated registration", () => {
@@ -299,11 +295,11 @@ describe("schema config", () => {
     expect(prefix.length).toBeGreaterThan(0);
   });
 
-  it("registers configFn entries for CFS", () => {
+  it("does not register exampleGenerator/overlayPrefix configFn (built from YAML)", () => {
     registerCfsHandlers();
     const fnIds = getRegisteredConfigFnIds();
-    expect(fnIds).toContain("cfs.exampleGenerator");
-    expect(fnIds).toContain("cfs.overlayPrefix");
+    expect(fnIds).not.toContain("cfs.exampleGenerator");
+    expect(fnIds).not.toContain("cfs.overlayPrefix");
   });
 });
 

@@ -2,6 +2,7 @@ import { StateGraph, END } from "@langchain/langgraph";
 import type { CfsState, GraphMessagingConfig, MessageType } from "../state.js";
 import type { GraphDsl } from "./graph-dsl-types.js";
 import { resolveHandler, resolveRouter, resolveConfig, resolveConfigFn } from "./handler-registry.js";
+import { evaluateRoutingRules } from "../core/routing/routing-engine.js";
 import { setGraphMessagingConfig } from "../core/config/messaging.js";
 import { interpolate } from "../core/helpers/template.js";
 
@@ -84,11 +85,15 @@ function preflight(dsl: GraphDsl): void {
     resolveHandler(node.handlerRef);
   }
 
+  const routingRules = dsl.config?.routingRules ?? {};
   for (const ct of dsl.transitions.conditional) {
     if (!nodeIds.has(ct.from)) {
       throw new Error(`Conditional transition "from" node "${ct.from}" is not declared.`);
     }
-    resolveRouter(ct.routerRef);
+    const rules = routingRules[ct.from];
+    if (!rules || rules.length === 0) {
+      resolveRouter(ct.routerRef);
+    }
     for (const dest of Object.values(ct.destinations)) {
       if (dest !== "__end__" && !nodeIds.has(dest)) {
         throw new Error(`Conditional destination "${dest}" is not a declared node.`);
@@ -161,7 +166,11 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
   const progressRules = cfg.progressRules?.questionKeyMap && Object.keys(cfg.progressRules.questionKeyMap).length > 0
     ? cfg.progressRules
     : undefined;
+  const questionTemplates = cfg.questionTemplates?.length ? cfg.questionTemplates : undefined;
   const options = cfg.options && Object.keys(cfg.options).length > 0 ? cfg.options : undefined;
+  const dynamicOptions = cfg.dynamicOptions && Object.keys(cfg.dynamicOptions).length > 0 ? cfg.dynamicOptions : undefined;
+  const continuationTriggers = cfg.continuationTriggers?.length ? cfg.continuationTriggers : undefined;
+  const ingestFieldMappings = cfg.ingestFieldMappings && Object.keys(cfg.ingestFieldMappings).length > 0 ? cfg.ingestFieldMappings : undefined;
 
   return {
     exampleGenerator: exampleGeneratorFn as GraphMessagingConfig["exampleGenerator"],
@@ -183,7 +192,11 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
     overlayPrefixes,
     exampleTemplates,
     progressRules,
+    questionTemplates,
     options,
+    dynamicOptions,
+    continuationTriggers,
+    ingestFieldMappings,
   };
 }
 
@@ -213,12 +226,20 @@ export function compileGraphFromDsl(dsl: GraphDsl): CompileResult {
 
   graph.setEntryPoint(dsl.graph.entrypoint);
 
+  const routingRules = dsl.config?.routingRules ?? {};
   for (const ct of dsl.transitions.conditional) {
-    const router = resolveRouter(ct.routerRef);
+    const rules = routingRules[ct.from];
     const destMap: Record<string, string> = {};
     for (const [key, value] of Object.entries(ct.destinations)) {
       destMap[key] = value === "__end__" ? END : value;
     }
+    const router =
+      rules && rules.length > 0
+        ? (state: CfsState) => {
+            const key = evaluateRoutingRules(rules, state);
+            return destMap[key] !== undefined ? key : "end";
+          }
+        : resolveRouter(ct.routerRef);
     graph.addConditionalEdges(ct.from, router, destMap);
   }
 

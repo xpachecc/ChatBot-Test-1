@@ -43,8 +43,64 @@ export async function runTurn(graphApp: CompileResult, state: CfsState, userText
   const inputLen = nextState.messages.length;
   const wasClarifier = nextState.session_context.step_clarifier_used === true;
 
+  // #region agent log
+  fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+    body: JSON.stringify({
+      sessionId: "e7c980",
+      location: "graph.ts:pre-invoke",
+      message: "Before graphApp.invoke",
+      data: {
+        step: nextState.session_context?.step,
+        trace: nextState.session_context?.reason_trace,
+        hypothesisId: "B",
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const result = await graphApp.invoke(nextState);
+  // #region agent log
+  fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+    body: JSON.stringify({
+      sessionId: "e7c980",
+      location: "graph.ts:post-invoke",
+      message: "After graphApp.invoke success",
+      data: { hypothesisId: "A" },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+  // #region agent log
+  fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+    body: JSON.stringify({
+      sessionId: "e7c980",
+      location: "graph.ts:pre-parse",
+      message: "Before CfsStateSchema.parse",
+      data: { hypothesisId: "B" },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const parsed = CfsStateSchema.parse(result);
+  // #region agent log
+  fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+    body: JSON.stringify({
+      sessionId: "e7c980",
+      location: "graph.ts:post-parse",
+      message: "After CfsStateSchema.parse success",
+      data: { hypothesisId: "B" },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   const lastNewIdx = findLastAIIndex(parsed.messages, inputLen);
   if (lastNewIdx < 0) return parsed;
@@ -63,6 +119,19 @@ export async function runTurn(graphApp: CompileResult, state: CfsState, userText
   }
 
   if (policy?.allowAIRephrase && text) {
+    // #region agent log
+    fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+      body: JSON.stringify({
+        sessionId: "e7c980",
+        location: "graph.ts:pre-review",
+        message: "Before reviewResponseWithAI",
+        data: { hypothesisId: "D" },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     text = await reviewResponseWithAI(text, { forbidFirstPerson: policy.forbidFirstPerson });
   }
 

@@ -1,4 +1,4 @@
-import type { CfsState } from "../state.js";
+import type { CfsState } from "../../state.js";
 import {
   PrimitivesInstance,
   lastHumanMessage,
@@ -15,19 +15,19 @@ import {
   configString,
   interpolate,
   type IngestHandler,
-} from "../infra.js";
-import { mergeStatePatch, patchSessionContext } from "../infra.js";
-import { invokeChatModelWithFallback } from "../core/services/ai/invoke.js";
-import { resolvePersonaGroupFromRole } from "../core/services/ai/resolve-persona.js";
-import { getPersonaGroups } from "../core/services/persona-groups.js";
+} from "../../infra.js";
+import { mergeStatePatch, patchSessionContext } from "../../infra.js";
+import { invokeChatModelWithFallback } from "../services/ai/invoke.js";
+import { resolvePersonaGroupFromRole } from "../services/ai/resolve-persona.js";
+import { getPersonaGroups } from "../services/persona-groups.js";
 import {
   buildVectorFilters,
   retrieveMarketSegmentCandidates,
   retrieveOutcomeCandidates,
   resolveMarketSegment,
-} from "../core/services/vector.js";
-import { getSubIndustrySuggestions, isIndustryVague } from "../core/services/internet-search.js";
-import { getModel } from "../core/config/model-factory.js";
+} from "../services/vector.js";
+import { getSubIndustrySuggestions, isIndustryVague } from "../services/internet-search.js";
+import { getModel } from "../config/model-factory.js";
 import {
   isAffirmativeAnswer,
   buildRoleAssessmentMessage,

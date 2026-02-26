@@ -87,6 +87,43 @@ export const GraphConfigSchema = z.object({
   exampleTemplates: z.record(z.string(), z.array(z.string())).default({}),
   progressRules: ProgressRulesSchema.default({}),
   options: z.record(z.string(), z.array(z.string())).default({}),
+  dynamicOptions: z
+    .record(
+      z.string(),
+      z.union([
+        z.object({ source: z.literal("service"), serviceRef: z.string() }),
+        z.object({ source: z.literal("state"), statePath: z.string(), format: z.enum(["numbered_list"]).optional() }),
+      ])
+    )
+    .default({}),
+  continuationTriggers: z
+    .array(
+      z.object({
+        traceIncludes: z.string(),
+        notReadoutReady: z.boolean().default(true),
+        steps: z.array(z.string()).default([]),
+        items: z.array(z.string()).min(1),
+      })
+    )
+    .default([]),
+  ingestFieldMappings: z
+    .record(
+      z.string(),
+      z.object({
+        targetField: z.string(),
+        sanitizeAs: z.enum(["name", "role", "industry", "goal", "timeframe"]).optional(),
+        captureObjective: z.boolean().optional(),
+      })
+    )
+    .default({}),
+  routingRules: z.record(z.string(), z.array(z.object({
+    when: z.record(z.string(), z.union([z.boolean(), z.string(), z.number(), z.object({
+      path: z.string(),
+      value: z.union([z.string(), z.number()]),
+    }).passthrough()])).optional(),
+    goto: z.string().optional(),
+    default: z.string().optional(),
+  }))).default({}),
 });
 
 // ── Node / transition schemas ───────────────────────────────────────

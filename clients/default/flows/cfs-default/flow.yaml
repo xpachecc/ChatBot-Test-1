@@ -236,8 +236,6 @@ runtimeConfigRefs:
     readout: "gpt-4o"
   messagePolicyRef: "cfs.messagePolicy"
   promptSetRef: "cfs.aiPrompts"
-  exampleGeneratorRef: "cfs.exampleGenerator"
-  overlayPrefixRef: "cfs.overlayPrefix"
 
 # ── Per-graph conversation config ────────────────────────────────────
 config:
@@ -316,6 +314,84 @@ config:
     CONFIRM_ROLE: ["Yes, that's correct", "No, let me clarify"]
     S1_KYC_CONFIRM: ["Yes, let's continue", "No"]
     S1_TIMEFRAME: ["6 months", "12 months"]
+
+  dynamicOptions:
+    S1_USE_CASE_GROUP:
+      source: service
+      serviceRef: persona-groups.getUseCaseGroups
+    S3_USE_CASE_SELECT:
+      source: state
+      statePath: use_case_context.use_cases_prioritized
+      format: numbered_list
+
+  ingestFieldMappings:
+    S1_NAME: { targetField: user_context.first_name, sanitizeAs: name }
+    S1_ROLE: { targetField: user_context.persona_role, sanitizeAs: role }
+    S1_INDUSTRY: { targetField: user_context.industry, sanitizeAs: industry }
+    S1_GOAL: { targetField: user_context.goal_statement, sanitizeAs: goal, captureObjective: true }
+    S1_TIMEFRAME: { targetField: user_context.timeframe, sanitizeAs: timeframe }
+
+  continuationTriggers:
+    - traceIncludes: "ask_use_case_questions:complete"
+      notReadoutReady: true
+      steps: ["STEP3_PERFORM_DISCOVERY", "STEP4_BUILD_READOUT"]
+      items: ["Continue to readout"]
+
+  routingRules:
+    routeInitFlow:
+      - when: { primitive_counter: 0, messages_empty: true }
+        goto: sendIntroAndAskUseCaseGroup
+      - when: { started: false }
+        goto: sendIntroAndAskUseCaseGroup
+      - when:
+          awaiting_user: false
+          state_path_empty: "user_context.first_name"
+          state_path_not_empty: "use_case_context.use_case_groups"
+          last_answer_equals: "yes"
+        goto: askUserName
+      - when:
+          awaiting_user: false
+          trace_includes: "ask_use_case_questions:complete"
+        goto: nodeDeterminePillars
+      - when:
+          awaiting_user: false
+          state_path_length_gt: { path: "use_case_context.discovery_questions", value: 0 }
+          trace_not_includes: "ask_use_case_questions:start"
+        goto: nodeAskUseCaseQuestions
+      - when:
+          awaiting_user: false
+          step_equals: "STEP4_BUILD_READOUT"
+          state_path_not_equals: { path: "readout_context.status", value: "ready" }
+        goto: nodeBuildReadout
+      - when: { awaiting_user: true, last_question_key: "S1_USE_CASE_GROUP" }
+        goto: ingestUseCaseGroupSelection
+      - when: { awaiting_user: true, last_question_key: "CONFIRM_START" }
+        goto: ingestConfirmStart
+      - when: { awaiting_user: true, last_question_key: "S1_NAME" }
+        goto: ingestUserName
+      - when: { awaiting_user: true, last_question_key: "S1_INDUSTRY" }
+        goto: ingestIndustry
+      - when: { awaiting_user: true, last_question_key: "S1_ROLE" }
+        goto: ingestRole
+      - when: { awaiting_user: true, last_question_key: "CONFIRM_ROLE" }
+        goto: ingestConfirmRole
+      - when: { awaiting_user: true, last_question_key: "S1_TIMEFRAME" }
+        goto: ingestTimeframe
+      - when: { awaiting_user: true, last_question_key: "S1_KYC_CONFIRM" }
+        goto: ingestKycConfirm
+      - when: { awaiting_user: true, last_question_key: "S1_INTERNET_SEARCH" }
+        goto: internetSearch
+      - when: { awaiting_user: true, last_question_key: "S3_USE_CASE_SELECT" }
+        goto: ingestUseCaseSelection
+      - when: { awaiting_user: true, last_question_key: "S3_DISCOVERY_QUESTION" }
+        goto: nodeAskUseCaseQuestions
+      - default: end
+    routePillarsLoop:
+      - when: { state_path_equals: { path: "readout_context.status", value: "ready" } }
+        goto: end
+      - when: { awaiting_user: true }
+        goto: end
+      - default: nodeBuildReadout
 
   steps:
     - id: STEP1_KNOW_YOUR_CUSTOMER

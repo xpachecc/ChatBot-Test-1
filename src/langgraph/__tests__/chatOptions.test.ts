@@ -10,9 +10,61 @@ jest.unstable_mockModule("../core/services/persona-groups.js", () => ({
 }));
 
 const { CfsStateSchema } = await import("../state.js");
-const { getOptionsForQuestionKey } = await import("../flows/chat-options.js");
+const { getOptionsForQuestionKey } = await import("../core/options/resolve-options.js");
 const { computeFlowProgress } = await import("../infra.js");
 const { setGraphMessagingConfig, clearGraphMessagingConfig } = await import("../core/config/messaging.js");
+
+const { afterEach, beforeEach } = await import("@jest/globals");
+
+const DEFAULT_CONFIG = {
+  options: {
+    CONFIRM_START: ["Yes", "No"],
+    CONFIRM_ROLE: ["Yes, that's correct", "No, let me clarify"],
+    S1_KYC_CONFIRM: ["Yes, let's continue", "No"],
+    S1_TIMEFRAME: ["6 months", "12 months"],
+  },
+  dynamicOptions: {
+    S1_USE_CASE_GROUP: { source: "service" as const, serviceRef: "persona-groups.getUseCaseGroups" },
+    S3_USE_CASE_SELECT: {
+      source: "state" as const,
+      statePath: "use_case_context.use_cases_prioritized",
+      format: "numbered_list" as const,
+    },
+  },
+  exampleGenerator: () => [] as string[],
+  overlayPrefix: () => "",
+  clarifierRetryText: { step1Ready: "", step2ConfirmPlan: "", step2Obstacle: "" },
+  clarificationAcknowledgement: [] as string[],
+  messagePolicy: {} as any,
+  aiPrompts: {} as any,
+  meta: {
+    flowTitle: "Discovery Account Executive",
+    flowDescription: "This automated assessment analyzes your needs.",
+    steps: [
+      { key: "STEP1_KNOW_YOUR_CUSTOMER", label: "Know Your Customer", order: 1, countable: true, totalQuestions: 6, countingStrategy: "questionKeyMap" as const },
+      { key: "STEP2_NARROW_DOWN_USE_CASES", label: "Narrow Down Use Cases", order: 2, countable: true, totalQuestions: 1, countingStrategy: "useCaseSelect" as const },
+      { key: "STEP3_PERFORM_DISCOVERY", label: "Perform Discovery", order: 3, countable: true, totalQuestions: 3, countingStrategy: "dynamicCount" as const },
+      { key: "STEP4_BUILD_READOUT", label: "Build Readout", order: 4, countable: true, totalQuestions: 1, countingStrategy: "readoutReady" as const },
+      { key: "STEP5_READOUT_SUMMARY_NEXT_STEPS", label: "Readout Summary and Next Steps", order: 5, countable: true, totalQuestions: 1, countingStrategy: "readoutReady" as const },
+    ],
+  },
+  progressRules: {
+    questionKeyMap: {
+      S1_USE_CASE_GROUP: 0,
+      CONFIRM_START: 1,
+      S1_NAME: 1,
+      S1_INDUSTRY: 2,
+      S1_INTERNET_SEARCH: 2,
+      S1_ROLE: 3,
+      CONFIRM_ROLE: 4,
+      S1_TIMEFRAME: 4,
+      S1_KYC_CONFIRM: 5,
+    },
+    dynamicCountField: "use_case_context.discovery_questions",
+    dynamicCountStepKey: "STEP3_PERFORM_DISCOVERY",
+    useCaseSelectQuestionKey: "S3_USE_CASE_SELECT",
+  },
+};
 
 function makeState(overrides: Record<string, unknown> = {}) {
   return CfsStateSchema.parse({
@@ -28,9 +80,39 @@ function makeState(overrides: Record<string, unknown> = {}) {
 }
 
 describe("getOptionsForQuestionKey", () => {
-  it("returns null when questionKey is null", async () => {
+  beforeEach(() => {
+    setGraphMessagingConfig(DEFAULT_CONFIG);
+  });
+  afterEach(() => {
+    clearGraphMessagingConfig();
+  });
+  it("returns null when questionKey is null and no continuation trigger matches", async () => {
     const state = makeState();
     expect(await getOptionsForQuestionKey(null, state)).toBeNull();
+  });
+
+  it("returns continuation trigger items when questionKey is null and state matches", async () => {
+    setGraphMessagingConfig({
+      ...DEFAULT_CONFIG,
+      continuationTriggers: [
+        {
+          traceIncludes: "ask_use_case_questions:complete",
+          notReadoutReady: true,
+          steps: ["STEP3_PERFORM_DISCOVERY", "STEP4_BUILD_READOUT"],
+          items: ["Continue to readout"],
+        },
+      ],
+    });
+    const state = makeState({
+      session_context: {
+        session_id: "test",
+        step: "STEP3_PERFORM_DISCOVERY",
+        awaiting_user: false,
+        reason_trace: ["ask_use_case_questions:complete"],
+      },
+    });
+    const result = await getOptionsForQuestionKey(null, state);
+    expect(result).toEqual({ items: ["Continue to readout"] });
   });
 
   it("returns Yes/No for CONFIRM_START", async () => {
@@ -99,52 +181,37 @@ describe("getOptionsForQuestionKey", () => {
     expect(await getOptionsForQuestionKey("UNKNOWN_KEY", state)).toBeNull();
   });
 
-  it("prefers config.options over STATIC_OPTIONS when set", async () => {
+  it("prefers config.options when set", async () => {
     setGraphMessagingConfig({
+      ...DEFAULT_CONFIG,
       options: { CONFIRM_START: ["Oui", "Non"] },
-      exampleGenerator: () => [],
-      overlayPrefix: () => "",
-      clarifierRetryText: { step1Ready: "", step2ConfirmPlan: "", step2Obstacle: "" },
-      clarificationAcknowledgement: [],
-      messagePolicy: {} as any,
-      aiPrompts: {} as any,
     });
-    try {
-      const state = makeState();
-      const result = await getOptionsForQuestionKey("CONFIRM_START", state);
-      expect(result).toEqual({ items: ["Oui", "Non"] });
-    } finally {
-      clearGraphMessagingConfig();
-    }
+    const state = makeState();
+    const result = await getOptionsForQuestionKey("CONFIRM_START", state);
+    expect(result).toEqual({ items: ["Oui", "Non"] });
   });
 
   it("prefers session_context.suggested_options over config", async () => {
-    setGraphMessagingConfig({
-      options: { CONFIRM_START: ["From config"] },
-      exampleGenerator: () => [],
-      overlayPrefix: () => "",
-      clarifierRetryText: { step1Ready: "", step2ConfirmPlan: "", step2Obstacle: "" },
-      clarificationAcknowledgement: [],
-      messagePolicy: {} as any,
-      aiPrompts: {} as any,
+    const state = makeState({
+      session_context: {
+        session_id: "test",
+        step: "STEP1_KNOW_YOUR_CUSTOMER",
+        suggested_options: { CONFIRM_START: ["From state"] },
+      },
     });
-    try {
-      const state = makeState({
-        session_context: {
-          session_id: "test",
-          step: "STEP1_KNOW_YOUR_CUSTOMER",
-          suggested_options: { CONFIRM_START: ["From state"] },
-        },
-      });
-      const result = await getOptionsForQuestionKey("CONFIRM_START", state);
-      expect(result).toEqual({ items: ["From state"] });
-    } finally {
-      clearGraphMessagingConfig();
-    }
+    const result = await getOptionsForQuestionKey("CONFIRM_START", state);
+    expect(result).toEqual({ items: ["From state"] });
   });
 });
 
 describe("computeFlowProgress edge cases", () => {
+  beforeEach(() => {
+    setGraphMessagingConfig(DEFAULT_CONFIG);
+  });
+  afterEach(() => {
+    clearGraphMessagingConfig();
+  });
+
   it("clamps answeredQuestions to totalQuestions", () => {
     const state = makeState({
       session_context: {

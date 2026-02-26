@@ -1,8 +1,20 @@
-import type { CfsState } from "../state.js";
-import { SpanSanitizer, TimeframeSanitizer, truncateTextToWordLimit } from "../core/helpers/text.js";
-import { opsExamplesForGoal, configString, interpolate } from "../core/helpers/template.js";
-import { STEP2_QUESTIONS } from "./step-flow-config.js";
-import { requireGraphMessagingConfig } from "../core/config/messaging.js";
+import type { CfsState } from "../../state.js";
+import { SpanSanitizer, TimeframeSanitizer, truncateTextToWordLimit } from "../helpers/text.js";
+import { opsExamplesForGoal, configString, interpolate } from "../helpers/template.js";
+import { requireGraphMessagingConfig } from "../config/messaging.js";
+
+const STEP2_MAX_QUESTIONS = 2;
+
+function getQuestionTemplate(key: string): { key: string; question: string } | null {
+  try {
+    const config = requireGraphMessagingConfig();
+    const templates = config.questionTemplates ?? [];
+    const found = templates.find((t) => t.key === key);
+    return found ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ── Re-exports from core/helpers ────────────────────────────────────
 export {
@@ -14,16 +26,19 @@ export {
   normalizeUseCasePillarEntries,
   normalizeDiscoveryQuestions,
   mergeDiscoveryQuestions,
-} from "../core/helpers/normalization.js";
-export { parsePillarsFromAi, parseCompositeQuestions, extractStringValuesFromMixedArray, extractStringValuesFromMixedArray as extractRiskPhrases, sanitizeNumericSelectionInput, sanitizeNumericSelectionInput as sanitizeSelectionInput, parseNumericSelectionIndices, parseNumericSelectionIndices as parseSelectionIndices } from "../core/helpers/parsing.js";
-export type { DiscoveryQuestionItem, PillarEntry } from "../core/helpers/parsing.js";
-export { sanitizeDiscoveryAnswer, truncateTextToWordLimit, truncateTextToWordLimit as buildGoalSummary } from "../core/helpers/text.js";
-export { isAffirmativeAnswer } from "../core/helpers/sentiment.js";
+} from "../helpers/normalization.js";
+export { parsePillarsFromAi, parseCompositeQuestions, extractStringValuesFromMixedArray, extractStringValuesFromMixedArray as extractRiskPhrases, sanitizeNumericSelectionInput, sanitizeNumericSelectionInput as sanitizeSelectionInput, parseNumericSelectionIndices, parseNumericSelectionIndices as parseSelectionIndices } from "../helpers/parsing.js";
+export type { DiscoveryQuestionItem, PillarEntry } from "../helpers/parsing.js";
+export { sanitizeDiscoveryAnswer, truncateTextToWordLimit, truncateTextToWordLimit as buildGoalSummary } from "../helpers/text.js";
+export { isAffirmativeAnswer } from "../helpers/sentiment.js";
 
 // ── Step 2 question builders ────────────────────────────────────────
 
 export function buildStep2Q1(state: CfsState): string {
-  const base = STEP2_QUESTIONS[0];
+  const base = getQuestionTemplate("S2_CONFIRM_PLAN") ?? {
+    key: "S2_CONFIRM_PLAN",
+    question: `[Step 2 – What We Will Accomplish Today – Question 1 of ${STEP2_MAX_QUESTIONS}]\nTo make the best use of our time, we'll focus on uncovering which processes most need alignment and what barriers may slow that progress.\n\n{{name}}, could you share which specific operational areas (for example, {{examples}}) are currently most inconsistent or fragmented as you pursue this goal?`,
+  };
   const name = SpanSanitizer(state.user_context.first_name, "there");
   const goal = SpanSanitizer(state.user_context.goal_statement ?? state.use_case_context.objective_normalized, "this standardization goal");
   const examples = opsExamplesForGoal(state.user_context.goal_statement ?? state.use_case_context.objective_normalized, state.user_context.industry).join(", ");
@@ -390,6 +405,6 @@ export function buildReadoutStyleQaPrompt(
   return { user: JSON.stringify(payload, null, 2) };
 }
 
-export { buildCanonicalReadoutDocument } from "../core/helpers/template.js";
-export type { CanonicalReadoutSection, CanonicalReadoutDocument } from "../core/helpers/template.js";
+export { buildCanonicalReadoutDocument } from "../helpers/template.js";
+export type { CanonicalReadoutSection, CanonicalReadoutDocument } from "../helpers/template.js";
 

@@ -10,7 +10,7 @@ import {
   type CfsState,
 } from "./langgraph/graph.js";
 import { computeFlowProgress } from "./langgraph/infra.js";
-import { getOptionsForQuestionKey } from "./langgraph/flows/chat-options.js";
+import { getOptionsForQuestionKey } from "./langgraph/core/options/resolve-options.js";
 import { resolveAppConfig, getTemplatePath } from "./config/appConfig.js";
 
 dotenv.config();
@@ -54,6 +54,21 @@ app.post("/chat", async (req: Request<unknown, unknown, ChatRequestBody>, res: R
     return res.status(400).json({ response: "Please provide a message." });
   }
   try {
+    // #region agent log
+    if (message === "Continue to readout") {
+      fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+        body: JSON.stringify({
+          sessionId: "e7c980",
+          location: "server.ts:continue-flow",
+          message: "Continue to readout message received",
+          data: { hypothesisId: "E" },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
     const sessionKey = sessionId || "default-thread";
     const existingState = sessionStore.get(sessionKey) ?? createInitialState({ sessionId: sessionKey });
     const prevLen = existingState.messages.length;
@@ -70,11 +85,43 @@ app.post("/chat", async (req: Request<unknown, unknown, ChatRequestBody>, res: R
         .join("\n\n") || "Sorry, I could not process the response.";
 
     const flowProgress = computeFlowProgress(nextState);
+    // #region agent log
+    fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+      body: JSON.stringify({
+        sessionId: "e7c980",
+        location: "server.ts:pre-options",
+        message: "Before getOptionsForQuestionKey",
+        data: { hypothesisId: "C" },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     const options = await getOptionsForQuestionKey(nextState.session_context.last_question_key, nextState);
 
     return res.json({ response: content, flowProgress, options });
   } catch (error: any) {
     console.error("Chat error:", error);
+    // #region agent log
+    fetch("http://127.0.0.1:7246/ingest/70f1d823-04ab-4354-9a86-674e8c225569", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e7c980" },
+      body: JSON.stringify({
+        sessionId: "e7c980",
+        location: "server.ts:catch",
+        message: "Chat error caught",
+        data: {
+          errorMessage: error?.message,
+          errorName: error?.name,
+          errorStack: error?.stack?.slice(0, 500),
+          message,
+          hypothesisId: "A",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return res.status(500).json({
       response: "Error processing request",
       error: error?.message,

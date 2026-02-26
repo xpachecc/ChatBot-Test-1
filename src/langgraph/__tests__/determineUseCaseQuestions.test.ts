@@ -23,7 +23,7 @@ afterEach(() => {
 
 describe("nodeDetermineUseCaseQuestions", () => {
   it("includes weave values only when real in the prompt", async () => {
-    const { buildUseCaseQuestionsPrompt, normalizeWeaveValue } = await import("../flows/step-flow-helpers.js");
+    const { buildUseCaseQuestionsPrompt, normalizeWeaveValue } = await import("../core/nodes/step-flow-helpers.js");
     const role = normalizeWeaveValue("default");
     const industry = normalizeWeaveValue("Healthcare");
     const timeframe = normalizeWeaveValue(" ");

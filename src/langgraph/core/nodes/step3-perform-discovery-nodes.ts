@@ -1,4 +1,4 @@
-import type { CfsState } from "../state.js";
+import type { CfsState } from "../../state.js";
 import {
   pushAI,
   SpanSanitizer,
@@ -8,12 +8,9 @@ import {
   interpolate,
   configString,
   questionnaireLoop,
-} from "../infra.js";
-import { assessAnswerRiskFromState } from "../core/guards/risk.js";
-import { invokeChatModelWithFallback } from "../core/services/ai/invoke.js";
-import { getAllPillars, getPillarsForOutcome } from "../core/services/pillars.js";
-import { S3_DISCOVERY_QUESTION_KEY, CFS_STEPS } from "./step-flow-config.js";
-import { getModel } from "../core/config/model-factory.js";
+} from "../../infra.js";
+import { assessAnswerRiskFromState } from "../guards/risk.js";
+import { getAllPillars, getPillarsForOutcome } from "../services/pillars.js";
 import {
   sanitizeDiscoveryAnswer,
   buildDiscoveryQuestionPrompt,
@@ -24,6 +21,9 @@ import {
   normalizeUseCasePillarEntries,
   type PillarEntry,
 } from "./step-flow-helpers.js";
+import { runAiCompute } from "../primitives/compute/ai-compute.js";
+
+const S3_DISCOVERY_QUESTION_KEY = "S3_DISCOVERY_QUESTION";
 
 declare global {
   // Optional test override for pillar selection.
@@ -86,7 +86,7 @@ export async function nodeAskUseCaseQuestions(state: CfsState): Promise<Partial<
     ...result,
     ...patchSessionContext(state, {
       ...(result.session_context ?? {}),
-      step: discoveryComplete ? CFS_STEPS.STEP4_BUILD_READOUT : CFS_STEPS.STEP3_PERFORM_DISCOVERY,
+      step: discoveryComplete ? "STEP4_BUILD_READOUT" : "STEP3_PERFORM_DISCOVERY",
     }),
   };
 }
@@ -134,7 +134,7 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
     return {
       ...buildPillarStateUpdate(state, toEntries(rpcPillars, 1.0)),
       ...patchSessionContext(state, {
-        step: CFS_STEPS.STEP4_BUILD_READOUT,
+        step: "STEP4_BUILD_READOUT",
         reason_trace: [...state.session_context.reason_trace, "determine_pillars:rpc_ok"],
       }),
     };
@@ -150,7 +150,7 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
     return {
       ...buildPillarStateUpdate(state, []),
       ...patchSessionContext(state, {
-        step: CFS_STEPS.STEP4_BUILD_READOUT,
+        step: "STEP4_BUILD_READOUT",
         reason_trace: [...state.session_context.reason_trace, "determine_pillars:empty"],
         guardrail_log: [...state.session_context.guardrail_log, "guardrail:fail:pillars_empty"],
       }),
@@ -168,7 +168,7 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
       return {
         ...buildPillarStateUpdate(state, filtered),
         ...patchSessionContext(state, {
-          step: CFS_STEPS.STEP4_BUILD_READOUT,
+          step: "STEP4_BUILD_READOUT",
           reason_trace: [...state.session_context.reason_trace, "determine_pillars:override"],
         }),
       };
@@ -176,42 +176,45 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
     return {
       ...buildPillarStateUpdate(state, toEntries(allowed, 0)),
       ...patchSessionContext(state, {
-        step: CFS_STEPS.STEP4_BUILD_READOUT,
+        step: "STEP4_BUILD_READOUT",
         reason_trace: [...state.session_context.reason_trace, "determine_pillars:override_invalid"],
         guardrail_log: [...state.session_context.guardrail_log, "guardrail:fail:pillars_override"],
       }),
     };
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  const { result: aiEntries, statePatch } = await runAiCompute(state, {
+    modelAlias: "useCaseQuestions",
+    systemPromptKey: "selectPillars",
+    inputOverrides: { outcome, selectedUseCases, allowedPillars: allowed },
+    buildUserPrompt: (p) => buildPillarsSelectionPrompt({
+      outcome: p.outcome as string,
+      selectedUseCases: (p.selectedUseCases ?? []) as string[],
+      allowedPillars: (p.allowedPillars ?? []) as string[],
+    }).user,
+    responseParser: "parsePillarsFromAi",
+    outputPath: "use_case_context.pillars",
+    runName: "determinePillars",
+  });
+
+  if (!aiEntries || !Array.isArray(aiEntries)) {
     return {
       ...buildPillarStateUpdate(state, toEntries(allowed, 0)),
       ...patchSessionContext(state, {
-        step: CFS_STEPS.STEP4_BUILD_READOUT,
+        step: "STEP4_BUILD_READOUT",
         reason_trace: [...state.session_context.reason_trace, "determine_pillars:ai_unavailable"],
         guardrail_log: [...state.session_context.guardrail_log, "guardrail:fail:pillars_ai_unavailable"],
       }),
     };
   }
 
-  const { system, user } = buildPillarsSelectionPrompt({
-    outcome,
-    selectedUseCases,
-    allowedPillars: allowed,
-  });
-  const model = getModel("useCaseQuestions");
-  const respText = await invokeChatModelWithFallback(model, system, user, {
-    runName: "determinePillars",
-    fallback: "",
-  });
-  const aiEntries = parsePillarsFromAi(respText);
   const allowedMap = buildAllowedPillarMap(allowed);
-  const filtered = filterAiEntries(aiEntries, allowedMap);
+  const filtered = filterAiEntries(aiEntries as PillarEntry[], allowedMap);
   if (filtered.length) {
     return {
       ...buildPillarStateUpdate(state, filtered),
       ...patchSessionContext(state, {
-        step: CFS_STEPS.STEP4_BUILD_READOUT,
+        step: "STEP4_BUILD_READOUT",
         reason_trace: [...state.session_context.reason_trace, "determine_pillars:ai_ok"],
       }),
     };
@@ -219,7 +222,7 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
   return {
     ...buildPillarStateUpdate(state, toEntries(allowed, 0)),
     ...patchSessionContext(state, {
-      step: CFS_STEPS.STEP4_BUILD_READOUT,
+      step: "STEP4_BUILD_READOUT",
       reason_trace: [...state.session_context.reason_trace, "determine_pillars:ai_invalid"],
       guardrail_log: [...state.session_context.guardrail_log, "guardrail:fail:pillars_ai_invalid"],
     }),
