@@ -84,6 +84,14 @@ export {
 } from "./core/primitives/compute/index.js";
 export { Primitive, AsyncPrimitive } from "./core/primitives/base.js";
 
+export {
+  runSignalOrchestrator,
+  type SignalAgentConfig,
+  type SignalAgentResult,
+  type SignalTurnRecord,
+  type SignalOrchestratorResult,
+} from "./core/agents/index.js";
+
 export { applyUserAnswerFn as applyUserAnswer };
 
 export { z } from "zod";

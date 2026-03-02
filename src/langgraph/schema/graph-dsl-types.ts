@@ -70,6 +70,11 @@ export const ProgressRulesSchema = z.object({
   useCaseSelectQuestionKey: z.string().default("S3_USE_CASE_SELECT"),
 });
 
+export const SignalAgentConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  ttlMs: z.number().int().min(100).default(1000),
+});
+
 export const GraphConfigSchema = z.object({
   steps: z.array(StepDefSchema).default([]),
   models: z.record(z.string(), ModelConfigSchema).default({}),
@@ -124,6 +129,7 @@ export const GraphConfigSchema = z.object({
     goto: z.string().optional(),
     default: z.string().optional(),
   }))).default({}),
+  signalAgents: SignalAgentConfigSchema.default({}),
 });
 
 // ── Node / transition schemas ───────────────────────────────────────
@@ -145,6 +151,7 @@ export const NodeDefSchema = z.object({
   reads: z.array(z.string()).default([]),
   writes: z.array(z.string()).default([]),
   description: z.string().optional(),
+  signalAgents: z.boolean().optional(),
 });
 
 export const StaticTransitionSchema = z.object({

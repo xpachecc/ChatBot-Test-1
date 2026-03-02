@@ -102,6 +102,7 @@ export type GraphMessagingConfig = {
     string,
     { targetField: string; sanitizeAs?: "name" | "role" | "industry" | "goal" | "timeframe"; captureObjective?: boolean }
   >;
+  signalAgents?: { enabled: boolean; ttlMs: number };
 };
 
 // Named primitives so we can log and track which routine ran.

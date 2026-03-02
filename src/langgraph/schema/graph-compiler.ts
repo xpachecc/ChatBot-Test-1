@@ -171,6 +171,9 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
   const dynamicOptions = cfg.dynamicOptions && Object.keys(cfg.dynamicOptions).length > 0 ? cfg.dynamicOptions : undefined;
   const continuationTriggers = cfg.continuationTriggers?.length ? cfg.continuationTriggers : undefined;
   const ingestFieldMappings = cfg.ingestFieldMappings && Object.keys(cfg.ingestFieldMappings).length > 0 ? cfg.ingestFieldMappings : undefined;
+  const signalAgents = cfg.signalAgents
+    ? { enabled: cfg.signalAgents.enabled, ttlMs: cfg.signalAgents.ttlMs }
+    : undefined;
 
   return {
     exampleGenerator: exampleGeneratorFn as GraphMessagingConfig["exampleGenerator"],
@@ -197,6 +200,7 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
     dynamicOptions,
     continuationTriggers,
     ingestFieldMappings,
+    signalAgents,
   };
 }
 

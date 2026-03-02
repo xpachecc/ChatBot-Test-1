@@ -74,6 +74,7 @@ nodes:
     handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
     writes: [session_context]
+    signalAgents: false
 
   - id: ingestUserName
     kind: ingest
@@ -110,6 +111,7 @@ nodes:
     handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
     writes: [session_context]
+    signalAgents: false
 
   - id: knowYourCustomerEcho
     kind: compute
@@ -117,6 +119,7 @@ nodes:
     reads: [user_context, use_case_context, vector_context]
     writes: [messages, session_context]
     description: "Echo KYC summary for user confirmation."
+    signalAgents: true
 
   # Step 2: Narrow Down Use Cases
   - id: nodeDetermineUseCases
@@ -746,6 +749,10 @@ config:
     defaultOutputTargets: ["download"]
     allowMultiTarget: true
     overridesByTenant: {}
+
+  signalAgents:
+    enabled: true
+    ttlMs: 1000
 
 # ── Compile-time validation ──────────────────────────────────────────
 validation:
