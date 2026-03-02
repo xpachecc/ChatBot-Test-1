@@ -3,14 +3,14 @@
 ## Overview
 
 This project uses a YAML-based schema (GraphDSL v1) to define LangGraph
-conversation flows. Each `.flow.yaml` file in the `graphs/` directory fully
-describes one graph's topology — nodes, transitions, routing, and config
+conversation flows. Each `.flow.yaml` file under `clients/<tenantId>/flows/<flowId>/`
+fully describes one graph's topology — nodes, transitions, routing, and config
 references. All runtime infrastructure (state validation, AI tooling, vector
 search, the `runTurn` lifecycle) is shared and never redefined per graph.
 
 ## Quick start: creating a new conversation flow
 
-1. Copy `graphs/cfs.flow.yaml` as a template.
+1. Copy `clients/default/flows/cfs-default/flow.yaml` as a template.
 2. Give your graph a unique `graphId` and `version`.
 3. Define your nodes, transitions, and routing.
 4. Register handlers in a new `<graphId>Handlers.ts` module.
@@ -20,9 +20,10 @@ search, the `runTurn` lifecycle) is shared and never redefined per graph.
 ## File layout
 
 ```
-graphs/
-  cfs.flow.yaml           # CFS conversation flow definition (topology + config)
-  AUTHORING.md            # This guide
+clients/<tenantId>/flows/<flowId>/
+  flow.yaml               # Flow definition (topology + config) — e.g. clients/default/flows/cfs-default/flow.yaml
+docs/
+  graph-authoring.md      # This guide
 src/langgraph/
   schema/
     graphDslTypes.ts       # Zod schema for the DSL (single source of truth)
@@ -281,7 +282,7 @@ import { registerMyGraphHandlers } from "./schema/myGraphHandlers.js";
 import { loadAndCompileGraph } from "./schema/graphLoader.js";
 
 registerMyGraphHandlers();
-const graph = loadAndCompileGraph("graphs/myGraph.flow.yaml");
+const graph = loadAndCompileGraph("clients/default/flows/cfs-default/flow.yaml");
 ```
 
 ### LangGraph Studio
@@ -296,7 +297,7 @@ Generate a Mermaid flowchart from any graph YAML:
 ### CLI
 
 ```bash
-npx tsx src/langgraph/schema/dslToMermaid.ts graphs/cfs.flow.yaml
+npx tsx src/langgraph/schema/dslToMermaid.ts clients/default/flows/cfs-default/flow.yaml
 ```
 
 This prints a Mermaid `flowchart TD` string to stdout. Paste it into any
@@ -308,7 +309,7 @@ markdown file for GitHub/VS Code rendering.
 import { dslToMermaid } from "./schema/dslToMermaid.js";
 import { loadGraphDsl } from "./schema/graphLoader.js";
 
-const dsl = loadGraphDsl("graphs/cfs.flow.yaml");
+const dsl = loadGraphDsl("clients/default/flows/cfs-default/flow.yaml");
 const mermaid = dslToMermaid(dsl);
 console.log(mermaid);
 ```

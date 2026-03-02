@@ -1,5 +1,3 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { CfsStateSchema, type CfsState, type GraphMessagingConfig, type MessageType } from "./state.js";
 import { createInitialState, requireGraphMessagingConfig, prependClarificationAcknowledgement } from "./infra.js";
@@ -8,14 +6,13 @@ import { reviewResponseWithAI } from "./core/guards/review.js";
 import { registerCfsHandlers } from "./schema/cfs-handlers.js";
 import { loadAndCompileGraph } from "./schema/graph-loader.js";
 import type { CompileResult } from "./schema/graph-compiler.js";
+import { getDefaultFlowPath } from "../config/appConfig.js";
 
 export type { CfsState } from "./state.js";
 export { CfsStateSchema } from "./state.js";
 export { createInitialState } from "./infra.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DEFAULT_CFS_YAML = path.resolve(__dirname, "../../graphs/cfs.flow.yaml");
+const DEFAULT_CFS_YAML = getDefaultFlowPath();
 
 export function buildGraphFromSchema(yamlPath: string): CompileResult {
   registerCfsHandlers();

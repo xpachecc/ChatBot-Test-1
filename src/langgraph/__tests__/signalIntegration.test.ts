@@ -8,7 +8,7 @@ import { loadAndCompileGraph } from "../schema/graph-loader.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const CFS_YAML = resolve(__dirname, "../../../graphs/cfs.flow.yaml");
+const CFS_YAML = resolve(__dirname, "../../../clients/default/flows/cfs-default/flow.yaml");
 
 beforeEach(() => {
   clearRegistry();

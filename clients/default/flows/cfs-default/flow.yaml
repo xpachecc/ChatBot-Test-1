@@ -33,6 +33,11 @@ nodes:
     handlerRef: "cfs.routePillarsLoop"
     description: "Pillar loop router — gates readout generation."
 
+  - id: routeAfterIngestUseCaseSelection
+    kind: router
+    handlerRef: "cfs.routeAfterIngestUseCaseSelection"
+    description: "After use case selection ingest — proceed if valid, else end (retry)."
+
   # Step 1: Know Your Customer
   - id: sendIntroAndAskUseCaseGroup
     kind: question
@@ -69,6 +74,7 @@ nodes:
     handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
     writes: [session_context]
+    signalAgents: false
 
   - id: ingestUserName
     kind: ingest
@@ -105,6 +111,7 @@ nodes:
     handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
     writes: [session_context]
+    signalAgents: false
 
   - id: knowYourCustomerEcho
     kind: compute
@@ -112,6 +119,7 @@ nodes:
     reads: [user_context, use_case_context, vector_context]
     writes: [messages, session_context]
     description: "Echo KYC summary for user confirmation."
+    signalAgents: true
 
   # Step 2: Narrow Down Use Cases
   - id: nodeDetermineUseCases
@@ -195,6 +203,12 @@ transitions:
         nodeBuildReadout: nodeBuildReadout
         end: "__end__"
 
+    - from: routeAfterIngestUseCaseSelection
+      routerRef: "cfs.routeAfterIngestUseCaseSelection"
+      destinations:
+        nodeDetermineUseCaseQuestions: nodeDetermineUseCaseQuestions
+        end: "__end__"
+
   static:
     - { from: sendIntroAndAskUseCaseGroup, to: "__end__" }
     - { from: askUserName,                 to: "__end__" }
@@ -210,7 +224,7 @@ transitions:
     - { from: ingestKycConfirm,            to: nodeDetermineUseCases }
     - { from: knowYourCustomerEcho,        to: "__end__" }
     - { from: nodeDetermineUseCases,       to: "__end__" }
-    - { from: ingestUseCaseSelection,      to: nodeDetermineUseCaseQuestions }
+    - { from: ingestUseCaseSelection,      to: routeAfterIngestUseCaseSelection }
     - { from: nodeDetermineUseCaseQuestions, to: nodeAskUseCaseQuestions }
     - { from: nodeAskUseCaseQuestions,     to: "__end__" }
     - { from: nodeDeterminePillars,        to: routePillarsLoop }
@@ -392,6 +406,10 @@ config:
       - when: { awaiting_user: true }
         goto: end
       - default: nodeBuildReadout
+    routeAfterIngestUseCaseSelection:
+      - when: { state_path_not_empty: "use_case_context.selected_use_cases" }
+        goto: nodeDetermineUseCaseQuestions
+      - default: end
 
   steps:
     - id: STEP1_KNOW_YOUR_CUSTOMER
@@ -731,6 +749,10 @@ config:
     defaultOutputTargets: ["download"]
     allowMultiTarget: true
     overridesByTenant: {}
+
+  signalAgents:
+    enabled: true
+    ttlMs: 1000
 
 # ── Compile-time validation ──────────────────────────────────────────
 validation:

@@ -152,7 +152,7 @@ flowchart LR
         AppConfigPath[app.config.json path]
         AppConfigPath --> LoadConfig[Load app.config]
         LoadConfig --> HasConfig{Config exists?}
-        HasConfig -->|No| Legacy[Legacy: graphs/cfs.flow.yaml]
+        HasConfig -->|No| DefaultFlow[Default: clients/tenant/flows/cfs-default/flow.yaml]
         HasConfig -->|Yes| FlowPath[Flow path: clients/tenant/flows/flowId/flow.yaml]
         FlowPath --> Template[Template: templates/chatbot1]
     end
@@ -167,7 +167,7 @@ flowchart LR
     TENANT_ID --> AppConfigPath
     APP_ID --> AppConfigPath
     APP_CONFIG_PATH --> AppConfigPath
-    Legacy --> flowPath
+    DefaultFlow --> flowPath
     FlowPath --> flowPath
     Template --> templatePath
 ```

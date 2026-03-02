@@ -5,6 +5,10 @@ declare global {
   var __chatOpenAIMockContent: string | undefined;
 }
 
+// Required by appConfig and graph modules
+process.env.TENANT_ID = process.env.TENANT_ID ?? "default";
+process.env.APP_ID = process.env.APP_ID ?? "cfs-chatbot";
+
 jest.unstable_mockModule("@langchain/openai", () => ({
   ChatOpenAI: class {
     async invoke() {

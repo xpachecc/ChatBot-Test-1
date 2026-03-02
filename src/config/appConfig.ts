@@ -24,11 +24,15 @@ export interface ResolvedAppConfig {
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 
 function getTenantId(): string {
-  return process.env.TENANT_ID ?? "default";
+  const id = process.env.TENANT_ID;
+  if (!id) throw new Error("TENANT_ID env var is required");
+  return id;
 }
 
 function getAppId(): string {
-  return process.env.APP_ID ?? "cfs-chatbot";
+  const id = process.env.APP_ID;
+  if (!id) throw new Error("APP_ID env var is required");
+  return id;
 }
 
 /**
@@ -89,7 +93,7 @@ export function validateAppConfig(config: ResolvedAppConfig): void {
   if (!existsSync(config.flowPath)) {
     throw new Error(
       `Flow not found: ${config.flowPath}. ` +
-        "Ensure the flow file exists or use legacy mode (no app config)."
+        "Ensure the flow file exists under clients/<tenantId>/flows/<flowId>/."
     );
   }
   const templatePath = getTemplatePath(config.template);
@@ -102,9 +106,17 @@ export function validateAppConfig(config: ResolvedAppConfig): void {
 }
 
 /**
+ * Resolve the default flow path when no app config or flowId is specified.
+ * Path: clients/<tenantId>/flows/cfs-default/flow.yaml
+ */
+export function getDefaultFlowPath(): string {
+  return getFlowPath(getTenantId(), "cfs-default");
+}
+
+/**
  * Load app config and resolve all paths.
  * Returns resolved config for server startup.
- * If no app config exists, returns legacy config (graphs/cfs.flow.yaml + chatbot1).
+ * If no app config exists, returns config for clients/<tenantId>/flows/cfs-default/flow.yaml.
  */
 export function resolveAppConfig(): ResolvedAppConfig {
   const tenantId = getTenantId();
@@ -113,18 +125,17 @@ export function resolveAppConfig(): ResolvedAppConfig {
   const config = loadAppConfig();
 
   if (!config) {
-    // Legacy mode: use graphs/cfs.flow.yaml and chatbot1
-    const legacyFlowPath = path.join(PROJECT_ROOT, "graphs", "cfs.flow.yaml");
-    const legacyConfig: ResolvedAppConfig = {
+    const defaultFlowPath = getFlowPath(tenantId, "cfs-default");
+    const defaultConfig: ResolvedAppConfig = {
       flowId: null,
-      flowPath: legacyFlowPath,
+      flowPath: defaultFlowPath,
       template: "chatbot1",
       tenantId,
       appId,
       uiOverrides: {},
     };
-    validateAppConfig(legacyConfig);
-    return legacyConfig;
+    validateAppConfig(defaultConfig);
+    return defaultConfig;
   }
 
   let flowPath: string;
@@ -139,8 +150,7 @@ export function resolveAppConfig(): ResolvedAppConfig {
   } else if (config.flowId) {
     flowPath = getFlowPath(tenantId, config.flowId);
   } else {
-    // Fallback to legacy
-    flowPath = path.join(PROJECT_ROOT, "graphs", "cfs.flow.yaml");
+    flowPath = getFlowPath(tenantId, "cfs-default");
   }
 
   const resolved: ResolvedAppConfig = {

@@ -117,11 +117,13 @@ describe("appConfig", () => {
   });
 
   describe("resolveAppConfig", () => {
-    it("returns legacy config when app config file does not exist", () => {
+    it("returns default flow config when app config file does not exist", () => {
       process.env.APP_CONFIG_PATH = path.join(PROJECT_ROOT, "clients/nonexistent/apps/nonexistent/app.config.json");
+      process.env.TENANT_ID = "default";
+      process.env.APP_ID = "cfs-chatbot";
       const resolved = resolveAppConfig();
       expect(resolved.flowId).toBeNull();
-      expect(resolved.flowPath).toMatch(/graphs\/cfs\.flow\.yaml/);
+      expect(resolved.flowPath).toMatch(/clients\/default\/flows\/cfs-default\/flow\.yaml/);
       expect(resolved.template).toBe("chatbot1");
     });
 
@@ -130,10 +132,28 @@ describe("appConfig", () => {
       if (!existsSync(appConfigPath)) {
         return; // skip if app config not created yet
       }
+      process.env.TENANT_ID = "default";
+      process.env.APP_ID = "cfs-chatbot";
       const resolved = resolveAppConfig();
       expect(resolved.flowId).toBe("cfs-default");
       expect(resolved.flowPath).toMatch(/cfs-default\/flow\.yaml/);
       expect(resolved.template).toBe("chatbot1");
+    });
+
+    it("throws when TENANT_ID is not set", () => {
+      process.env.TENANT_ID = "";
+      delete process.env.TENANT_ID;
+      process.env.APP_ID = "cfs-chatbot";
+      process.env.APP_CONFIG_PATH = path.join(PROJECT_ROOT, "clients/nonexistent/apps/nonexistent/app.config.json");
+      expect(() => resolveAppConfig()).toThrow("TENANT_ID env var is required");
+    });
+
+    it("throws when APP_ID is not set", () => {
+      process.env.TENANT_ID = "default";
+      process.env.APP_ID = "";
+      delete process.env.APP_ID;
+      process.env.APP_CONFIG_PATH = path.join(PROJECT_ROOT, "clients/nonexistent/apps/nonexistent/app.config.json");
+      expect(() => resolveAppConfig()).toThrow("APP_ID env var is required");
     });
   });
 });

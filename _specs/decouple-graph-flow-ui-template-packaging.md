@@ -108,15 +108,9 @@ For this project, tenantId is hardcoded; appId and flowId can be resolved from e
 
 ### Migration / Backward Compatibility
 
-The current CFS flow lives at `graphs/cfs.flow.yaml`. To adopt the new structure:
+**Migration completed.** The CFS flow now lives exclusively at `clients/default/flows/cfs-default/flow.yaml`. The legacy `graphs/cfs.flow.yaml` has been removed. `TENANT_ID` and `APP_ID` are required environment variables with no code-level defaults.
 
-1. Once this code is merged into the multi-tenant platform the user login will facilitate the tenantID from the tenancy granted with login.  (for now use a hardcoded tenantId).
-2. Create a flow record in the DB for CFS; the generated flowId becomes the folder name.  (genereate a dummy for now this will also be facilited by the multitenatn platform)
-3. Create `clients/<tenantId>/flows/<flowId>/flow.yaml` (copy or move from `graphs/cfs.flow.yaml`).
-4. Create an app record in the DB; the generated appId becomes the folder name. (for now generate a dummy since this ID will be given by the multi-tenant platform once merged)
-5. Create `clients/<tenantId>/apps/<appId>/app.config.json` with `{ flowId, template: "chatbot1", uiOverrides }`.
-
-Until migration, the server may support a legacy mode: if flowId is absent, fall back to a path-based config (e.g., `graph: "graphs/cfs.flow.yaml"`) for backward compatibility.
+When no app config exists, the server loads the flow from `clients/<TENANT_ID>/flows/cfs-default/flow.yaml`. The `config.graph` path-based override remains for explicit path specification, but no fallback to `graphs/` exists.
 
 ## Scenario Coverage
 ### Primary Success Scenario
