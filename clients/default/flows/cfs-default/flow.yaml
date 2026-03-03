@@ -41,21 +41,83 @@ nodes:
   # Step 1: Know Your Customer
   - id: sendIntroAndAskUseCaseGroup
     kind: question
-    handlerRef: "step1.nodeInit"
     writes: [messages, session_context, use_case_context]
     description: "Send introduction and ask for use case group."
+    nodeConfig:
+      greeting:
+        stringKeys: ["step1.greet", "step1.followup"]
+        afterQuestionKey: "S1_USE_CASE_GROUP"
+        initialSessionContext:
+          started: true
+          awaiting_user: true
+          step_question_index: 0
+          step_clarifier_used: false
 
   - id: askUserName
     kind: question
-    handlerRef: "step1.nodeAskUserName"
     writes: [messages, session_context]
     description: "Ask user for their name."
+    nodeConfig:
+      question:
+        stringKey: "step1.nameQuestion"
+        questionKey: "S1_NAME"
+        questionPurpose: "collect_name"
+        targetVariable: "name"
 
   - id: askIndustry
     kind: question
-    handlerRef: "step1.nodeAskIndustry"
     writes: [messages, session_context]
     description: "Ask user for their industry."
+    nodeConfig:
+      question:
+        stringKeys: ["step1.industryIntro", "step1.industryBody", "step1.industryPrompt"]
+        questionKey: "S1_INDUSTRY"
+        questionPurpose: "collect_industry"
+        targetVariable: "industry"
+        interpolateFrom:
+          name: "user_context.first_name"
+
+  - id: askRole
+    kind: question
+    writes: [messages, session_context]
+    description: "Ask user for their role."
+    nodeConfig:
+      question:
+        stringKey: "step1.roleQuestion"
+        questionKey: "S1_ROLE"
+        questionPurpose: "collect_role"
+        targetVariable: "role"
+        allowAIRephrase: true
+        prefix:
+          stateField: "user_context.first_name"
+          fallback: "there"
+        rephraseContext:
+          industryField: "user_context.industry"
+          roleField: "user_context.persona_role"
+          useCaseGroupsField: "use_case_context.use_case_groups"
+          actorRole: "SAAS Enterprise Account Executive"
+          tone: "conversational, curious"
+
+  - id: askTimeframe
+    kind: question
+    writes: [messages, session_context]
+    description: "Ask user for their timeframe."
+    nodeConfig:
+      question:
+        stringKey: "step1.timeframeQuestion"
+        questionKey: "S1_TIMEFRAME"
+        questionPurpose: "collect_timeframe"
+        targetVariable: "timeframe"
+        allowAIRephrase: true
+        prefix:
+          stateField: "user_context.persona_clarified_role|user_context.persona_role"
+          fallback: "your role"
+        rephraseContext:
+          industryField: "user_context.industry"
+          roleField: "user_context.persona_clarified_role|user_context.persona_role"
+          useCaseGroupsField: "use_case_context.use_case_groups"
+          actorRole: "SAAS Enterprise Account Executive"
+          tone: "conversational, curious"
 
   - id: internetSearch
     kind: integration
@@ -71,16 +133,28 @@ nodes:
 
   - id: ingestConfirmStart
     kind: ingest
-    handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
-    writes: [session_context]
+    writes: [messages, session_context]
     signalAgents: false
+    nodeConfig:
+      ingest:
+        affirmativeCheckConfig:
+          rejectStringKey: "step1.confirmStartDecline"
+          rejectPatch:
+            awaiting_user: false
+            last_question_key: null
+          acceptQuestionConfig:
+            stringKey: "step1.nameQuestion"
+            questionKey: "S1_NAME"
+            questionPurpose: "collect_name"
+            targetVariable: "name"
 
   - id: ingestUserName
     kind: ingest
-    handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
     writes: [user_context, session_context]
+    nodeConfig:
+      ingest: {}
 
   - id: ingestIndustry
     kind: ingest
@@ -102,16 +176,26 @@ nodes:
 
   - id: ingestTimeframe
     kind: ingest
-    handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
     writes: [user_context, session_context]
+    nodeConfig:
+      ingest: {}
 
   - id: ingestKycConfirm
     kind: ingest
-    handlerRef: "step1.nodeStep1Ingest"
     reads: [messages, session_context]
-    writes: [session_context]
+    writes: [messages, session_context]
     signalAgents: false
+    nodeConfig:
+      ingest:
+        affirmativeCheckConfig:
+          rejectStringKey: "step1.kycConfirmReject"
+          rejectPatch:
+            last_question_key: "S1_KYC_CONFIRM"
+          acceptStringKey: "step1.kycContinuation"
+          acceptPatch:
+            awaiting_user: false
+            last_question_key: null
 
   - id: knowYourCustomerEcho
     kind: compute
@@ -168,10 +252,16 @@ nodes:
   # Step 5: Readout Summary and Next Steps
   - id: nodeDisplayReadout
     kind: compute
-    handlerRef: "step4.nodeDisplayReadout"
     reads: [readout_context, session_context]
     writes: [messages]
     description: "Display readout document and download option."
+    nodeConfig:
+      display:
+        statePath: "readout_context.rendered_outputs.markdown"
+        fallbackMessage: "Your strategic readout is ready."
+        appendDownloadUrl:
+          stateField: "readout_context.delivery.download.url"
+          fallbackPattern: "/readout/{{session_id}}.md"
 
 # ── Transitions ──────────────────────────────────────────────────────
 transitions:
@@ -182,6 +272,8 @@ transitions:
         sendIntroAndAskUseCaseGroup: sendIntroAndAskUseCaseGroup
         askUserName: askUserName
         askIndustry: askIndustry
+        askRole: askRole
+        askTimeframe: askTimeframe
         internetSearch: internetSearch
         ingestUseCaseGroupSelection: ingestUseCaseGroupSelection
         ingestConfirmStart: ingestConfirmStart
@@ -213,10 +305,12 @@ transitions:
     - { from: sendIntroAndAskUseCaseGroup, to: "__end__" }
     - { from: askUserName,                 to: "__end__" }
     - { from: askIndustry,                 to: "__end__" }
+    - { from: askRole,                     to: "__end__" }
+    - { from: askTimeframe,                to: "__end__" }
     - { from: internetSearch,              to: "__end__" }
     - { from: ingestUseCaseGroupSelection, to: "__end__" }
     - { from: ingestConfirmStart,          to: "__end__" }
-    - { from: ingestUserName,              to: "__end__" }
+    - { from: ingestUserName,              to: routeInitFlow }
     - { from: ingestIndustry,              to: "__end__" }
     - { from: ingestRole,                  to: "__end__" }
     - { from: ingestConfirmRole,           to: "__end__" }
@@ -363,6 +457,23 @@ config:
           state_path_not_empty: "use_case_context.use_case_groups"
           last_answer_equals: "yes"
         goto: askUserName
+      # Sequencing rules: after each ingest, route to the next question
+      - when:
+          awaiting_user: false
+          state_path_not_empty: "user_context.first_name"
+          state_path_empty: "user_context.industry"
+        goto: askIndustry
+      - when:
+          awaiting_user: false
+          state_path_not_empty: "user_context.industry"
+          state_path_empty: "user_context.persona_role"
+        goto: askRole
+      - when:
+          awaiting_user: false
+          state_path_not_empty: "user_context.persona_role"
+          state_path_empty: "user_context.timeframe"
+          trace_includes: "confirm_role:accepted"
+        goto: askTimeframe
       - when:
           awaiting_user: false
           trace_includes: "ask_use_case_questions:complete"

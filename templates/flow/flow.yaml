@@ -1,0 +1,264 @@
+# ──────────────────────────────────────────────────────────────────────
+# Flow YAML Template — GraphDSL v1
+# ──────────────────────────────────────────────────────────────────────
+# Standard specification for developing new LangGraph conversation flows.
+# Copy this file to clients/<tenantId>/flows/<flowId>/flow.yaml and customize.
+#
+# NOTE: This template will not compile until handlers are registered and
+# all handlerRef/routerRef values resolve in the handler registry.
+#
+# Reference: docs/graph-authoring.md
+# Schema: src/langgraph/schema/graph-dsl-types.ts
+# ──────────────────────────────────────────────────────────────────────
+
+# ── Graph metadata (required) ────────────────────────────────────────
+graph:
+  graphId: "myFlow"                     # Unique identifier; use camelCase to match handlerRef prefix
+  version: "1.0.0"                      # Semantic version
+  description: >                        # Human-readable flow description
+    Brief description of what this conversation flow accomplishes.
+  entrypoint: routeInitFlow             # Node ID where execution begins
+  tags:                                 # Optional tags for filtering
+    - myFlow
+    - example
+
+# ── State contract (required) ─────────────────────────────────────────
+# Reference to shared Zod state schema. Currently only CfsStateSchema supported.
+stateContractRef: "state.CfsStateSchema"
+
+# ── Node catalog (required, min 1) ─────────────────────────────────────
+# Node kinds: router | question | ingest | compute | integration | terminal
+# - router: Passthrough; outgoing edges driven by router function
+# - question: Presents question to user, sets awaiting_user: true
+# - ingest: Processes user answer, updates state
+# - compute: AI-driven computation (selection, determination, generation)
+# - integration: External service call (search, vector retrieval)
+# - terminal: End-of-flow node
+# Optional: helperRefs (string[]) for additional helper function references
+nodes:
+  # Router (required for conditional branching)
+  - id: routeInitFlow
+    kind: router
+    handlerRef: "myFlow.routeInitFlow"  # Format: <graphId>.<handlerName>
+    description: "Central router — dispatches based on session state."
+
+  # Question node — option A: YAML-driven generic handler (no TypeScript needed)
+  - id: askFirstQuestion
+    kind: question
+    writes: [messages, session_context]
+    description: "Ask user the first question."
+    nodeConfig:
+      question:
+        stringKey: "myFlow.firstQuestion"        # Key in config.strings
+        questionKey: "Q1"                         # Routing key for ingest
+        questionPurpose: "collect_answer"
+        targetVariable: "answer"
+        # allowAIRephrase: true                   # Enable AI rephrasing
+        # interpolateFrom:                        # Template interpolation
+        #   name: "user_context.first_name"
+        # prefix:                                 # Prepend state value
+        #   stateField: "user_context.first_name"
+        #   fallback: "there"
+
+  # Question node — option B: custom handler (for complex logic)
+  # - id: askComplexQuestion
+  #   kind: question
+  #   handlerRef: "myFlow.askComplexQuestion"
+  #   writes: [messages, session_context]
+
+  # Ingest node — generic (uses ingestFieldMappings from config)
+  - id: ingestFirstAnswer
+    kind: ingest
+    reads: [messages, session_context]
+    writes: [session_context]
+    nodeConfig:
+      ingest: {}
+    # signalAgents: false  # Optional. Per-node override.
+
+  # Greeting node — generic (sends config strings as intro messages)
+  # - id: sendGreeting
+  #   kind: question
+  #   writes: [messages, session_context]
+  #   nodeConfig:
+  #     greeting:
+  #       stringKeys: ["myFlow.greet", "myFlow.followup"]
+  #       afterQuestionKey: "Q1"                  # Sets last_question_key after greeting
+
+  # Display node — generic (reads state path and pushes as AI message)
+  # - id: displayOutput
+  #   kind: compute
+  #   reads: [session_context]
+  #   writes: [messages]
+  #   nodeConfig:
+  #     display:
+  #       statePath: "readout_context.rendered_outputs.markdown"
+  #       fallbackMessage: "Output is ready."
+
+  # Compute node (AI-driven logic)
+  # - id: nodeCompute
+  #   kind: compute
+  #   handlerRef: "myFlow.nodeCompute"
+  #   reads: [session_context]
+  #   writes: [session_context]
+  #   description: "AI-driven computation."
+
+  # Integration node (external API, e.g. Firecrawl)
+  # - id: nodeIntegration
+  #   kind: integration
+  #   handlerRef: "myFlow.nodeIntegration"
+  #   writes: [session_context]
+  #   description: "External service call."
+
+# ── Transitions (required) ────────────────────────────────────────────
+transitions:
+  conditional:
+    - from: routeInitFlow
+      routerRef: "myFlow.routeInitFlow"
+      destinations:
+        askFirstQuestion: askFirstQuestion
+        ingestFirstAnswer: ingestFirstAnswer
+        end: "__end__"
+
+  static:
+    - { from: askFirstQuestion, to: "__end__" }
+    - { from: ingestFirstAnswer, to: "__end__" }
+# Use "__end__" for graph termination (maps to LangGraph END)
+
+# ── Routing keys (optional) ───────────────────────────────────────────
+# State paths that drive routing decisions (documentation/validation)
+routingKeys:
+  - session_context.step
+  - session_context.last_question_key
+  - session_context.awaiting_user
+  - messages
+
+# ── Runtime config references (optional) ──────────────────────────────
+# When config block has inline aiPrompts/messagePolicy, compiler uses it directly.
+# Refs are fallbacks; initConfigRef only used when no inline config present.
+runtimeConfigRefs:
+  modelAliases:
+    default: "gpt-3.5-turbo"
+  messagePolicyRef: "myFlow.messagePolicy"
+  promptSetRef: "myFlow.aiPrompts"
+# Optional: initConfigRef, deliveryPolicyRef, exampleGeneratorRef, overlayPrefixRef
+
+# ── Per-graph conversation config (optional) ───────────────────────────
+config:
+  meta:
+    flowTitle: "My Flow"
+    flowDescription: "Brief description for the UI."
+    steps:
+      - key: STEP1
+        label: "Step 1"
+        order: 1
+        countable: true
+        totalQuestions: 1
+        countingStrategy: questionKeyMap
+# countingStrategy: questionKeyMap | useCaseSelect | readoutReady | dynamicCount
+
+  overlayPrefixes:
+    default: "To stay aligned, "
+
+  exampleTemplates:
+    role:
+      - 'Example (as a user): "You lead the team that owns..."'
+    industry:
+      - 'Example (as a user): "Your organization is in {{industry}}..."'
+
+  progressRules:
+    questionKeyMap:
+      S1_QUESTION: 0
+    dynamicCountField: "session_context.items"
+    dynamicCountStepKey: "STEP1"
+
+  options:
+    S1_CONFIRM: ["Yes", "No"]
+
+  dynamicOptions:
+    S1_SELECT:
+      source: service
+      serviceRef: my-service.getOptions
+# Or: source: state, statePath: session_context.items, format: numbered_list
+
+  ingestFieldMappings:
+    S1_NAME: { targetField: user_context.first_name, sanitizeAs: name }
+# sanitizeAs: name | role | industry | goal | timeframe
+
+  continuationTriggers:
+    - traceIncludes: "step1:complete"
+      notReadoutReady: true
+      steps: ["STEP1"]
+      items: ["Continue"]
+
+  routingRules:
+    routeInitFlow:
+      - when: { awaiting_user: true, last_question_key: "S1_QUESTION" }
+        goto: ingestFirstAnswer
+      - when: { awaiting_user: false }
+        goto: askFirstQuestion
+      - default: end
+# when keys: primitive_counter, messages_empty, started, awaiting_user,
+# state_path_empty, state_path_not_empty, state_path_equals, state_path_not_equals,
+# state_path_length_gt, state_path_length_lt, last_answer_equals, last_question_key,
+# trace_includes, trace_not_includes, step_equals
+
+  steps:
+    - id: STEP1
+      label: "step1-My_Step"
+
+  models:
+    default:
+      model: "gpt-3.5-turbo"
+      temperature: 0.4
+      maxRetries: 1
+
+  messagePolicy:
+    intro: { allowAIRephrase: false, forbidFirstPerson: false }
+    default: { allowAIRephrase: false, forbidFirstPerson: false }
+
+  aiPrompts:
+    selectOption: >-
+      You select the best option from the list.
+      Return JSON only: {"option":"...","confidence":0.0-1.0}.
+
+  strings:
+    step1.greet: "Welcome!"
+    step1.question: "What would you like to do?"
+
+  questionTemplates:
+    - key: S1_QUESTION
+      question: |
+        [Step 1 – Question 1 of 1]
+        {{name}}, could you share your preference?
+
+  clarifierRetryText:
+    step1: "Please answer with yes or no."
+
+  clarificationAcknowledgement:
+    - "Thank you for the clarification."
+    - "Understood."
+
+  readoutVoice:
+    rolePerspective: "Coach_Affirmative"
+    voiceCharacteristics: "Energetic and optimistic"
+    behavioralIntent: "Close on a motivational note"
+
+  # readout: { sectionKeys: [...], sectionContract: "..." }  # Add when flow produces readout document
+
+  delivery:
+    outputTargets: ["download"]
+    defaultOutputTargets: ["download"]
+    allowMultiTarget: true
+    overridesByTenant: {}
+
+  signalAgents:
+    enabled: true
+    ttlMs: 1000
+
+# ── Compile-time validation (optional) ────────────────────────────────
+validation:
+  requiredStateFields:
+    - session_context.session_id
+  invariants:
+    - "All node handlerRefs must resolve in the handler registry"
+    - "All routerRefs must resolve in the router registry"

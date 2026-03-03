@@ -1,10 +1,13 @@
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs";
 import { buildGraphFromSchema, createInitialState, runTurn } from "../graph.js";
 import { registerCfsHandlers, resetCfsRegistration } from "../schema/cfs-handlers.js";
-import { clearRegistry, getRegisteredHandlerIds, getRegisteredConfigFnIds } from "../schema/handler-registry.js";
+import { registerHandlersForGraph, registerHandlerModule } from "../schema/graph-handler-modules.js";
+import { clearRegistry, getRegisteredHandlerIds, getRegisteredConfigFnIds, registerHandler } from "../schema/handler-registry.js";
 import { loadGraphDsl, parseGraphDslFromText } from "../schema/graph-loader.js";
 import { compileGraphFromDsl, buildGraphMessagingConfigFromDsl } from "../schema/graph-compiler.js";
+import { requireGraphMessagingConfig, clearGraphMessagingConfig } from "../core/config/messaging.js";
 import { lastAIMessage } from "../infra.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,7 +80,8 @@ describe("handler registry", () => {
     registerCfsHandlers();
     const handlers = getRegisteredHandlerIds();
 
-    expect(handlers).toContain("step1.nodeInit");
+    expect(handlers).toContain("step1.nodeStep1Ingest");
+    expect(handlers).toContain("step1.nodeKnowYourCustomerEcho");
     expect(handlers).toContain("step2.nodeDetermineUseCases");
     expect(handlers).toContain("step3.nodeAskUseCaseQuestions");
     expect(handlers).toContain("step4.nodeBuildReadout");
@@ -129,6 +133,8 @@ describe("schema topology", () => {
     "sendIntroAndAskUseCaseGroup",
     "askUserName",
     "askIndustry",
+    "askRole",
+    "askTimeframe",
     "internetSearch",
     "ingestUseCaseGroupSelection",
     "ingestConfirmStart",
@@ -161,7 +167,7 @@ describe("schema topology", () => {
 
   it("DSL has 20 static transitions", () => {
     const dsl = loadGraphDsl(CFS_YAML);
-    expect(dsl.transitions.static.length).toBe(20);
+    expect(dsl.transitions.static.length).toBe(22);
   });
 
   it("DSL has 3 conditional transition groups", () => {
@@ -300,6 +306,83 @@ describe("schema config", () => {
     const fnIds = getRegisteredConfigFnIds();
     expect(fnIds).not.toContain("cfs.exampleGenerator");
     expect(fnIds).not.toContain("cfs.overlayPrefix");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Multi-Flow Handler Architecture
+// ---------------------------------------------------------------------------
+describe("multi-flow handler architecture", () => {
+  it("throws when graphId has no registered handler module", () => {
+    expect(() => registerHandlersForGraph("unknown")).toThrow(
+      /No handler module registered for graphId: unknown/
+    );
+  });
+
+  it("requireGraphMessagingConfig(cfs) returns config after CFS build", () => {
+    clearGraphMessagingConfig();
+    const compiled = buildGraphFromSchema(CFS_YAML);
+    expect(compiled.graphId).toBe("cfs");
+    const config = requireGraphMessagingConfig("cfs");
+    expect(config).toBeDefined();
+    expect(config.messagePolicy).toBeDefined();
+    expect(config.messagePolicy.default).toBeDefined();
+  });
+
+  it("buildGraphFromSchema registers handlers via graphId without explicit registerCfsHandlers", () => {
+    clearRegistry();
+    resetCfsRegistration();
+    const compiled = buildGraphFromSchema(CFS_YAML);
+    const handlers = getRegisteredHandlerIds();
+    expect(handlers).toContain("step1.nodeStep1Ingest");
+    expect(handlers).toContain("cfs.routeInitFlow");
+    expect(compiled.graphId).toBe("cfs");
+  });
+
+  it("compiles minimal test flow with custom graphId when handler module is registered", () => {
+    clearRegistry();
+    resetCfsRegistration();
+    clearGraphMessagingConfig();
+
+    registerHandlerModule("testFlow", () => {
+      registerHandler("testFlow.router", (s: any) => s);
+    });
+
+    const testYaml = `
+graph:
+  graphId: testFlow
+  version: "1.0"
+  entrypoint: router
+stateContractRef: state.CfsStateSchema
+nodes:
+  - id: router
+    kind: router
+    handlerRef: testFlow.router
+transitions:
+  static:
+    - { from: router, to: "__end__" }
+config:
+  aiPrompts:
+    test: "test prompt"
+`;
+    const testPath = resolve(__dirname, "fixtures/test-flow.yaml");
+    const testDir = resolve(__dirname, "fixtures");
+    if (!existsSync(testDir)) {
+      mkdirSync(testDir, { recursive: true });
+    }
+    writeFileSync(testPath, testYaml);
+
+    try {
+      const compiled = buildGraphFromSchema(testPath);
+      expect(compiled.graphId).toBe("testFlow");
+      expect(compiled.compiled).toBeDefined();
+      expect(typeof compiled.compiled.invoke).toBe("function");
+
+      const config = requireGraphMessagingConfig("testFlow");
+      expect((config.aiPrompts as Record<string, string>).test).toBe("test prompt");
+    } finally {
+      try { unlinkSync(testPath); } catch { /* ignore */ }
+    }
   });
 });
 

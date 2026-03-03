@@ -1,7 +1,7 @@
+import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import path from "path";
-import dotenv from "dotenv";
 import { AIMessage } from "@langchain/core/messages";
 import {
   buildGraphFromSchema,
@@ -12,8 +12,6 @@ import {
 import { computeFlowProgress } from "./langgraph/infra.js";
 import { getOptionsForQuestionKey } from "./langgraph/core/options/resolve-options.js";
 import { resolveAppConfig, getTemplatePath } from "./config/appConfig.js";
-
-dotenv.config();
 
 const appConfig = resolveAppConfig();
 const graphApp = buildGraphFromSchema(appConfig.flowPath);

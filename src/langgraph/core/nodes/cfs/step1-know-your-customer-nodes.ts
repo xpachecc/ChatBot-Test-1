@@ -1,9 +1,7 @@
-import type { CfsState } from "../../state.js";
+import type { CfsState } from "../../../state.js";
 import {
-  PrimitivesInstance,
   lastHumanMessage,
   pushAI,
-  prependClarificationAcknowledgement,
   SpanSanitizer,
   TimeframeSanitizer,
   applyUserAnswer,
@@ -15,19 +13,20 @@ import {
   configString,
   interpolate,
   type IngestHandler,
-} from "../../infra.js";
-import { mergeStatePatch, patchSessionContext } from "../../infra.js";
-import { invokeChatModelWithFallback } from "../services/ai/invoke.js";
-import { resolvePersonaGroupFromRole } from "../services/ai/resolve-persona.js";
-import { getPersonaGroups } from "../services/persona-groups.js";
+  PrimitivesInstance,
+} from "../../../infra.js";
+import { mergeStatePatch, patchSessionContext } from "../../../infra.js";
+import { invokeChatModelWithFallback } from "../../services/ai/invoke.js";
+import { resolvePersonaGroupFromRole } from "../../services/ai/resolve-persona.js";
+import { getPersonaGroups } from "../../services/persona-groups.js";
 import {
   buildVectorFilters,
   retrieveMarketSegmentCandidates,
   retrieveOutcomeCandidates,
   resolveMarketSegment,
-} from "../services/vector.js";
-import { getSubIndustrySuggestions, isIndustryVague } from "../services/internet-search.js";
-import { getModel } from "../config/model-factory.js";
+} from "../../services/vector.js";
+import { getSubIndustrySuggestions, isIndustryVague } from "../../services/internet-search.js";
+import { getModel } from "../../config/model-factory.js";
 import {
   isAffirmativeAnswer,
   buildRoleAssessmentMessage,
@@ -39,84 +38,6 @@ declare global {
   // Optional test override for the recap node.
   // eslint-disable-next-line no-var
   var __knowYourCustomerEchoOverride: string | null | undefined;
-}
-
-export function nodeInit(state: CfsState): Partial<CfsState> {
-  const greet = configString("step1.greet", "Welcome to Pure Storage!");
-  const followup = configString("step1.followup", "Thank you for showing interest in the TCO model.\nTell me, what Enterprise Data challenge do you have that brings you here today?");
-  const withGreet = pushAI(state, greet, "intro");
-  const withFollowup = pushAI(mergeStatePatch(state, withGreet), followup, "intro");
-  const greetState: CfsState = {
-    ...mergeStatePatch(state, withFollowup),
-    ...patchSessionContext(state, {
-      started: true,
-      awaiting_user: true,
-      last_question_key: "S1_USE_CASE_GROUP",
-      step_question_index: 0,
-      step_clarifier_used: false,
-    }),
-  };
-  return greetState;
-}
-
-export function nodeAskUserName(state: CfsState): Partial<CfsState> {
-  return PrimitivesInstance.AskQuestion.run(state, {
-    question: configString("step1.nameQuestion", "Before we get started, what's your first name?"),
-    questionKey: "S1_NAME",
-    questionPurpose: "collect_name",
-    targetVariable: "name",
-  });
-}
-
-export function nodeAskIndustry(state: CfsState): Partial<CfsState> {
-  const name = SpanSanitizer(state.user_context.first_name, "there");
-  const intro = interpolate(configString("step1.industryIntro", "It's great meeting you {{name}}."), { name });
-  const body = configString("step1.industryBody", "To provide precise architectural guidance, I need to understand your domain.\nSystem requirements shift significantly between industries—a solution for Telecom differs fundamentally from Healthcare, just as Pharma requires a different approach than Hospital Networks.");
-  const ask = configString("step1.industryPrompt", "\n\n**What industry and specialized focus are you solving for?");
-  const prompt = [intro, "", body, "", ask].join("\n");
-  return PrimitivesInstance.AskQuestion.run(state, {
-    question: prompt,
-    questionKey: "S1_INDUSTRY",
-    questionPurpose: "collect_industry",
-    targetVariable: "industry",
-  });
-}
-
-export async function nodeAskRole(state: CfsState): Promise<Partial<CfsState>> {
-  const name = SpanSanitizer(state.user_context.first_name, "there");
-  return askWithRephrase.run(state, {
-    baseQuestion: configString("step1.roleQuestion", "What is your role in the organization - how are you accountable?"),
-    questionKey: "S1_ROLE",
-    questionPurpose: "collect_role",
-    targetVariable: "role",
-    prefix: name,
-    allowAIRephrase: true,
-    rephraseContext: {
-      industry: state.user_context.industry,
-      role: state.user_context.persona_role,
-      useCaseGroups: state.use_case_context.use_case_groups,
-      actorRole: "SAAS Enterprise Account Executive",
-      tone: "conversational, curious",
-    },
-  });
-}
-
-export async function nodeAskTimeframe(state: CfsState): Promise<Partial<CfsState>> {
-  const role = SpanSanitizer(state.user_context.persona_clarified_role ?? state.user_context.persona_role, "your role");
-  return askWithRephrase.run(state, {
-    baseQuestion: configString("step1.timeframeQuestion", "By when do you need to see results? 6 or 12 months maybe? Select an appropriate timeframe or enter your appropriate timeframe."),
-    questionKey: "S1_TIMEFRAME",
-    questionPurpose: "collect_timeframe",
-    targetVariable: "timeframe",
-    allowAIRephrase: true,
-    rephraseContext: {
-      industry: state.user_context.industry,
-      role,
-      useCaseGroups: state.use_case_context.use_case_groups,
-      actorRole: "SAAS Enterprise Account Executive",
-      tone: "conversational, curious",
-    },
-  });
 }
 
 export function nodeConfirmRoleAssessment(state: CfsState, message: string, examples: string[]): Partial<CfsState> {
@@ -206,30 +127,6 @@ const handleUseCaseGroup: IngestHandler = async (state) => {
   };
 };
 
-const handleConfirmStart: IngestHandler = async (state) => {
-  const answer = (lastHumanMessage(state)?.content?.toString() ?? "").trim().toLowerCase();
-  if (answer !== "yes") {
-    return {
-      ...pushAI(state, configString("step1.confirmStartDecline", "No problem. Tell me when you're ready to proceed.")),
-      ...patchSessionContext(state, { awaiting_user: false, last_question_key: null }),
-    };
-  }
-  return {
-    ...nodeAskUserName(state),
-    ...patchSessionContext(state, { awaiting_user: true, last_question_key: "S1_NAME" }),
-  };
-};
-
-const handleName: IngestHandler = async (state) => {
-  const updates = await applyUserAnswer(state);
-  const nextState = mergeStatePatch(state, updates);
-  return {
-    ...updates,
-    ...nodeAskIndustry(nextState),
-    ...patchSessionContext(state, { ...(updates.session_context ?? {}), last_question_key: "S1_INDUSTRY", awaiting_user: true }),
-  };
-};
-
 const handleIndustry: IngestHandler = async (state) => {
   const priorIndustry = state.user_context.industry;
   const updates = await applyUserAnswer(state);
@@ -279,9 +176,25 @@ const handleIndustry: IngestHandler = async (state) => {
     ...baseState,
     user_context: { ...(baseState.user_context ?? {}), market_segment: marketSegment },
   };
+  const name = SpanSanitizer(stateWithSegment.user_context.first_name, "there");
+  const roleQuestion = await askWithRephrase.run(stateWithSegment, {
+    baseQuestion: configString("step1.roleQuestion", "What is your role in the organization - how are you accountable?"),
+    questionKey: "S1_ROLE",
+    questionPurpose: "collect_role",
+    targetVariable: "role",
+    prefix: name,
+    allowAIRephrase: true,
+    rephraseContext: {
+      industry: finalIndustry,
+      role: stateWithSegment.user_context.persona_role,
+      useCaseGroups: stateWithSegment.use_case_context.use_case_groups,
+      actorRole: "SAAS Enterprise Account Executive",
+      tone: "conversational, curious",
+    },
+  });
   return {
     ...updates,
-    ...(await nodeAskRole(stateWithSegment)),
+    ...roleQuestion,
     user_context: { ...(state.user_context ?? {}), ...(updates.user_context ?? {}), industry: finalIndustry, market_segment: marketSegment },
     ...patchSessionContext(state, { ...(updates.session_context ?? {}), last_question_key: "S1_ROLE", awaiting_user: true }),
   };
@@ -330,18 +243,24 @@ const handleRole: IngestHandler = async (state) => {
   };
 };
 
-const handleTimeframe: IngestHandler = async (state) => {
-  const updates = await applyUserAnswer(state);
-  return {
-    ...updates,
-    ...patchSessionContext(state, { ...(updates.session_context ?? {}), awaiting_user: false, last_question_key: null }),
-  };
-};
-
 const handleConfirmRole: IngestHandler = async (state) => {
   const answer = (lastHumanMessage(state)?.content?.toString() ?? "").trim();
   if (isAffirmativeAnswer(answer)) {
-    const nextMessage = await nodeAskTimeframe(state);
+    const role = SpanSanitizer(state.user_context.persona_clarified_role ?? state.user_context.persona_role, "your role");
+    const nextMessage = await askWithRephrase.run(state, {
+      baseQuestion: configString("step1.timeframeQuestion", "By when do you need to see results? 6 or 12 months maybe? Select an appropriate timeframe or enter your appropriate timeframe."),
+      questionKey: "S1_TIMEFRAME",
+      questionPurpose: "collect_timeframe",
+      targetVariable: "timeframe",
+      allowAIRephrase: true,
+      rephraseContext: {
+        industry: state.user_context.industry,
+        role,
+        useCaseGroups: state.use_case_context.use_case_groups,
+        actorRole: "SAAS Enterprise Account Executive",
+        tone: "conversational, curious",
+      },
+    });
     return { ...nextMessage, ...patchSessionContext(state, { awaiting_user: true, last_question_key: "S1_TIMEFRAME" }) };
   }
   const correctedRole = SpanSanitizer(answer, "role");
@@ -364,30 +283,11 @@ const handleConfirmRole: IngestHandler = async (state) => {
   };
 };
 
-const handleKycConfirm: IngestHandler = async (state) => {
-  const answer = (lastHumanMessage(state)?.content?.toString() ?? "").trim();
-  if (!isAffirmativeAnswer(answer)) {
-    return {
-      ...pushAI(state, configString("step1.kycConfirmReject", 'Please click "Yes, Lets continue" to continue.')),
-      ...patchSessionContext(state, { awaiting_user: true, last_question_key: "S1_KYC_CONFIRM" }),
-    };
-  }
-  const continuation = configString("step1.kycContinuation", "Excellent. We have two quick steps left. Now let's make sure we have the right use case!");
-  return {
-    ...pushAI(state, prependClarificationAcknowledgement(continuation)),
-    ...patchSessionContext(state, { awaiting_user: false, last_question_key: null }),
-  };
-};
-
 const step1IngestHandlers: Record<string, IngestHandler> = {
   S1_USE_CASE_GROUP: handleUseCaseGroup,
-  CONFIRM_START: handleConfirmStart,
-  S1_NAME: handleName,
   S1_INDUSTRY: handleIndustry,
   S1_ROLE: handleRole,
-  S1_TIMEFRAME: handleTimeframe,
   CONFIRM_ROLE: handleConfirmRole,
-  S1_KYC_CONFIRM: handleKycConfirm,
 };
 
 export async function nodeStep1Ingest(state: CfsState): Promise<Partial<CfsState>> {

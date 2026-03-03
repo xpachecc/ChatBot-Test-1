@@ -2,6 +2,7 @@ import { StateGraph, END } from "@langchain/langgraph";
 import type { CfsState, GraphMessagingConfig, MessageType } from "../state.js";
 import type { GraphDsl } from "./graph-dsl-types.js";
 import { resolveHandler, resolveRouter, resolveConfig, resolveConfigFn } from "./handler-registry.js";
+import { createGenericHandler } from "./generic-handlers.js";
 import { evaluateRoutingRules } from "../core/routing/routing-engine.js";
 import { setGraphMessagingConfig } from "../core/config/messaging.js";
 import { interpolate } from "../core/helpers/template.js";
@@ -64,6 +65,14 @@ const CFS_STATE_CHANNELS = {
 export type CompileResult = any;
 
 /**
+ * Wrapper around a compiled graph that carries the graphId for scoped config lookup.
+ */
+export interface CompiledGraph {
+  graphId: string;
+  compiled: CompileResult;
+}
+
+/**
  * Validates a parsed GraphDsl against the handler/router/config registries
  * and the known state contracts. Throws on any unresolvable reference.
  */
@@ -82,7 +91,11 @@ function preflight(dsl: GraphDsl): void {
   }
 
   for (const node of dsl.nodes) {
-    resolveHandler(node.handlerRef);
+    if (node.handlerRef) {
+      resolveHandler(node.handlerRef);
+    } else if (!node.nodeConfig) {
+      throw new Error(`Node "${node.id}" has neither handlerRef nor nodeConfig.`);
+    }
   }
 
   const routingRules = dsl.config?.routingRules ?? {};
@@ -207,13 +220,15 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
 /**
  * Compiles a validated GraphDsl into a runnable LangGraph StateGraph.
  * Rejects schemas that attempt to redefine the shared state contract.
+ * Returns a CompiledGraph wrapper with graphId for scoped config lookup.
  */
-export function compileGraphFromDsl(dsl: GraphDsl): CompileResult {
+export function compileGraphFromDsl(dsl: GraphDsl): CompiledGraph {
   preflight(dsl);
 
+  const graphId = dsl.graph.graphId;
   const builtConfig = buildGraphMessagingConfigFromDsl(dsl);
   if (builtConfig) {
-    setGraphMessagingConfig(builtConfig);
+    setGraphMessagingConfig(graphId, builtConfig);
   } else if (dsl.runtimeConfigRefs.initConfigRef) {
     const initFn = resolveConfig(dsl.runtimeConfigRefs.initConfigRef);
     initFn();
@@ -224,7 +239,15 @@ export function compileGraphFromDsl(dsl: GraphDsl): CompileResult {
   } as any);
 
   for (const node of dsl.nodes) {
-    const handler = resolveHandler(node.handlerRef);
+    let handler;
+    if (node.handlerRef) {
+      handler = resolveHandler(node.handlerRef);
+      if (node.nodeConfig) {
+        console.warn(`[graph-compiler] Node "${node.id}" has both handlerRef and nodeConfig; using handlerRef.`);
+      }
+    } else {
+      handler = createGenericHandler(node, dsl.config);
+    }
     graph.addNode(node.id, handler);
   }
 
@@ -251,5 +274,5 @@ export function compileGraphFromDsl(dsl: GraphDsl): CompileResult {
     graph.addEdge(st.from, st.to === "__end__" ? END : st.to);
   }
 
-  return graph.compile();
+  return { graphId, compiled: graph.compile() };
 }

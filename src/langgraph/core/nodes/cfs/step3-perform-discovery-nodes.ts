@@ -1,4 +1,4 @@
-import type { CfsState } from "../../state.js";
+import type { CfsState } from "../../../state.js";
 import {
   pushAI,
   SpanSanitizer,
@@ -8,9 +8,9 @@ import {
   interpolate,
   configString,
   questionnaireLoop,
-} from "../../infra.js";
-import { assessAnswerRiskFromState } from "../guards/risk.js";
-import { getAllPillars, getPillarsForOutcome } from "../services/pillars.js";
+} from "../../../infra.js";
+import { assessAnswerRiskFromState } from "../../guards/risk.js";
+import { getAllPillars, getPillarsForOutcome } from "../../services/pillars.js";
 import {
   sanitizeDiscoveryAnswer,
   buildDiscoveryQuestionPrompt,
@@ -21,7 +21,7 @@ import {
   normalizeUseCasePillarEntries,
   type PillarEntry,
 } from "./step-flow-helpers.js";
-import { runAiCompute } from "../primitives/compute/ai-compute.js";
+import { runAiCompute } from "../../primitives/compute/ai-compute.js";
 
 const S3_DISCOVERY_QUESTION_KEY = "S3_DISCOVERY_QUESTION";
 

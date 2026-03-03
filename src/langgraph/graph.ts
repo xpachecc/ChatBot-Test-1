@@ -3,27 +3,32 @@ import { CfsStateSchema, type CfsState, type GraphMessagingConfig, type MessageT
 import { createInitialState, requireGraphMessagingConfig, prependClarificationAcknowledgement } from "./infra.js";
 import { runSignalOrchestrator } from "./core/agents/index.js";
 import { reviewResponseWithAI } from "./core/guards/review.js";
-import { registerCfsHandlers } from "./schema/cfs-handlers.js";
-import { loadAndCompileGraph } from "./schema/graph-loader.js";
-import type { CompileResult } from "./schema/graph-compiler.js";
+import { registerHandlersForGraph } from "./schema/graph-handler-modules.js";
+import { loadGraphDsl } from "./schema/graph-loader.js";
+import { compileGraphFromDsl } from "./schema/graph-compiler.js";
+import type { CompiledGraph } from "./schema/graph-compiler.js";
+import { setActiveGraphId } from "./core/config/messaging.js";
 import { getDefaultFlowPath } from "../config/appConfig.js";
 
 export type { CfsState } from "./state.js";
+export type { CompiledGraph } from "./schema/graph-compiler.js";
 export { CfsStateSchema } from "./state.js";
 export { createInitialState } from "./infra.js";
 
 const DEFAULT_CFS_YAML = getDefaultFlowPath();
 
-export function buildGraphFromSchema(yamlPath: string): CompileResult {
-  registerCfsHandlers();
-  return loadAndCompileGraph(yamlPath);
+export function buildGraphFromSchema(yamlPath: string): CompiledGraph {
+  const dsl = loadGraphDsl(yamlPath);
+  registerHandlersForGraph(dsl.graph.graphId);
+  return compileGraphFromDsl(dsl);
 }
 
-export function buildCfsGraph(): CompileResult {
+export function buildCfsGraph(): CompiledGraph {
   return buildGraphFromSchema(DEFAULT_CFS_YAML);
 }
 
-export const graph = buildCfsGraph();
+/** LangGraph Studio expects a compiled graph; export the compiled instance. */
+export const graph = buildCfsGraph().compiled;
 
 function findLastAIIndex(messages: unknown[], startFrom: number): number {
   for (let i = messages.length - 1; i >= startFrom; i--) {
@@ -32,7 +37,7 @@ function findLastAIIndex(messages: unknown[], startFrom: number): number {
   return -1;
 }
 
-export async function runTurn(graphApp: CompileResult, state: CfsState, userText?: string): Promise<CfsState> {
+export async function runTurn(graphApp: CompiledGraph, state: CfsState, userText?: string): Promise<CfsState> {
   const nextState: CfsState = CfsStateSchema.parse({
     ...state,
     session_context: { ...state.session_context },
@@ -40,6 +45,8 @@ export async function runTurn(graphApp: CompileResult, state: CfsState, userText
   });
   const inputLen = nextState.messages.length;
   const wasClarifier = nextState.session_context.step_clarifier_used === true;
+
+  setActiveGraphId(graphApp.graphId);
 
   let config: GraphMessagingConfig | null = null;
   try { config = requireGraphMessagingConfig(); } catch { /* not set yet */ }
@@ -49,7 +56,7 @@ export async function runTurn(graphApp: CompileResult, state: CfsState, userText
       ? runSignalOrchestrator(userText, nextState, signalConfig).catch(() => null)
       : Promise.resolve(null);
 
-  const result = await graphApp.invoke(nextState);
+  const result = await graphApp.compiled.invoke(nextState);
   const parsed = CfsStateSchema.parse(result);
 
   const signals = await Promise.race([

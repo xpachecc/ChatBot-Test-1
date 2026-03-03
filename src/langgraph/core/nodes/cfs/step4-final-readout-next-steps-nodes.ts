@@ -1,22 +1,22 @@
-import type { CfsState } from "../../state.js";
+import type { CfsState } from "../../../state.js";
 import {
   pushAI,
   requireGraphMessagingConfig,
   multiSectionDocBuilder,
   configString,
-} from "../../infra.js";
-import { docStyleQa } from "../primitives/compute/index.js";
+} from "../../../infra.js";
+import { docStyleQa } from "../../primitives/compute/index.js";
 import {
   mergeStatePatch,
   patchSessionContext,
   buildFallbackFromSchema,
-} from "../../infra.js";
-import { invokeChatModelWithFallback } from "../services/ai/invoke.js";
+} from "../../../infra.js";
+import { invokeChatModelWithFallback } from "../../services/ai/invoke.js";
 import {
   READOUT_DOCUMENT_TYPES,
   retrieveReadoutDocuments,
-} from "../services/vector.js";
-import { getModel } from "../config/model-factory.js";
+} from "../../services/vector.js";
+import { getModel } from "../../config/model-factory.js";
 import {
   buildCanonicalReadoutDocument,
   buildReadinessAssessmentPrompt,
@@ -327,19 +327,3 @@ export async function nodeBuildReadout(state: CfsState): Promise<Partial<CfsStat
   };
 }
 
-/**
- * Step 5: Display the readout document and download option.
- * Runs after nodeBuildReadout; pushes the readout content to messages.
- */
-export function nodeDisplayReadout(state: CfsState): Partial<CfsState> {
-  const rc = state.readout_context;
-  if (!rc || rc.status !== "ready") {
-    return {};
-  }
-  const markdown = rc.rendered_outputs?.markdown ?? "";
-  const downloadUrl = rc.delivery?.download?.url ?? `/readout/${state.session_context.session_id}.md`;
-  const message = markdown
-    ? `${markdown}\n\n---\nDownload: ${downloadUrl}`
-    : `Your strategic readout is ready. Download: ${downloadUrl}`;
-  return pushAI(state, message);
-}

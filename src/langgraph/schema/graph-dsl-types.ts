@@ -143,16 +143,90 @@ export const NodeKindSchema = z.enum([
   "terminal",
 ]);
 
+// ── Generic node config schemas (YAML-driven handler generation) ────
+
+export const RephraseContextSchema = z.object({
+  industryField: z.string().optional(),
+  roleField: z.string().optional(),
+  useCaseGroupsField: z.string().optional(),
+  actorRole: z.string().optional(),
+  tone: z.string().optional(),
+});
+
+export const PrefixConfigSchema = z.object({
+  stateField: z.string(),
+  fallback: z.string().default(""),
+});
+
+export const QuestionNodeConfigSchema = z.object({
+  stringKey: z.string().optional(),
+  stringKeys: z.array(z.string()).optional(),
+  questionKey: z.string().min(1),
+  questionPurpose: z.string().optional(),
+  targetVariable: z.string().optional(),
+  interpolateFrom: z.record(z.string(), z.string()).optional(),
+  allowAIRephrase: z.boolean().default(false),
+  rephraseContext: RephraseContextSchema.optional(),
+  prefix: PrefixConfigSchema.optional(),
+});
+
+export const GreetingNodeConfigSchema = z.object({
+  stringKeys: z.array(z.string()).min(1),
+  initialSessionContext: z.record(z.string(), z.unknown()).optional(),
+  afterQuestionKey: z.string().optional(),
+});
+
+export const AppendDownloadUrlSchema = z.object({
+  stateField: z.string(),
+  fallbackPattern: z.string(),
+});
+
+export const DisplayNodeConfigSchema = z.object({
+  statePath: z.string().min(1),
+  fallbackMessage: z.string().optional(),
+  appendDownloadUrl: AppendDownloadUrlSchema.optional(),
+});
+
+export const AcceptQuestionConfigSchema = z.object({
+  stringKey: z.string().min(1),
+  questionKey: z.string().min(1),
+  questionPurpose: z.string().optional(),
+  targetVariable: z.string().optional(),
+});
+
+export const AffirmativeCheckConfigSchema = z.object({
+  rejectStringKey: z.string().min(1),
+  rejectPatch: z.record(z.string(), z.unknown()).default({}),
+  acceptStringKey: z.string().optional(),
+  acceptPatch: z.record(z.string(), z.unknown()).default({}),
+  acceptQuestionConfig: AcceptQuestionConfigSchema.optional(),
+});
+
+export const IngestNodeConfigSchema = z.object({
+  affirmativeCheckConfig: AffirmativeCheckConfigSchema.optional(),
+});
+
+export const NodeConfigSchema = z.object({
+  question: QuestionNodeConfigSchema.optional(),
+  greeting: GreetingNodeConfigSchema.optional(),
+  display: DisplayNodeConfigSchema.optional(),
+  ingest: IngestNodeConfigSchema.optional(),
+});
+
 export const NodeDefSchema = z.object({
   id: z.string().min(1),
   kind: NodeKindSchema,
-  handlerRef: z.string().min(1),
+  handlerRef: z.string().min(1).optional(),
   helperRefs: z.array(z.string()).default([]),
   reads: z.array(z.string()).default([]),
   writes: z.array(z.string()).default([]),
   description: z.string().optional(),
   signalAgents: z.boolean().optional(),
-});
+  nodeConfig: NodeConfigSchema.optional(),
+}).refine(
+  (node) => node.handlerRef || node.nodeConfig,
+  { message: "A node must have at least one of handlerRef or nodeConfig" },
+);
 
 export const StaticTransitionSchema = z.object({
   from: z.string().min(1),
@@ -213,3 +287,11 @@ export type QuestionTemplate = z.infer<typeof QuestionTemplateSchema>;
 export type FlowStepMeta = z.infer<typeof FlowStepMetaSchema>;
 export type FlowMeta = z.infer<typeof FlowMetaSchema>;
 export type ProgressRules = z.infer<typeof ProgressRulesSchema>;
+export type NodeConfig = z.infer<typeof NodeConfigSchema>;
+export type QuestionNodeConfig = z.infer<typeof QuestionNodeConfigSchema>;
+export type GreetingNodeConfig = z.infer<typeof GreetingNodeConfigSchema>;
+export type DisplayNodeConfig = z.infer<typeof DisplayNodeConfigSchema>;
+export type IngestNodeConfig = z.infer<typeof IngestNodeConfigSchema>;
+export type AffirmativeCheckConfig = z.infer<typeof AffirmativeCheckConfigSchema>;
+export type RephraseContext = z.infer<typeof RephraseContextSchema>;
+export type PrefixConfig = z.infer<typeof PrefixConfigSchema>;

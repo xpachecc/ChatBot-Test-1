@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { GraphDslSchema } from "./graph-dsl-types.js";
 import type { GraphDsl } from "./graph-dsl-types.js";
 import { compileGraphFromDsl } from "./graph-compiler.js";
-import type { CompileResult } from "./graph-compiler.js";
+import type { CompiledGraph } from "./graph-compiler.js";
 
 /**
  * Parses and validates a YAML file against the GraphDSL v1 Zod schema.
@@ -19,7 +19,7 @@ export function loadGraphDsl(filePath: string): GraphDsl {
  * Loads a YAML graph definition, validates it, and compiles it into a
  * runnable LangGraph StateGraph instance.
  */
-export function loadAndCompileGraph(filePath: string): CompileResult {
+export function loadAndCompileGraph(filePath: string): CompiledGraph {
   const dsl = loadGraphDsl(filePath);
   return compileGraphFromDsl(dsl);
 }

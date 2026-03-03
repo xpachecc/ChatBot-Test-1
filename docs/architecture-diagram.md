@@ -172,7 +172,31 @@ flowchart LR
     Template --> templatePath
 ```
 
-## 5. State & Option Resolution
+## 5. Multi-Flow Handler Resolution
+
+```mermaid
+flowchart LR
+    subgraph Build["buildGraphFromSchema"]
+        LoadYAML[Load flow.yaml]
+        LoadYAML --> ExtractGraphId[Extract graphId]
+        ExtractGraphId --> Lookup[graph-handler-modules.ts]
+        Lookup --> Register[registerHandlersForGraph]
+        Register --> Compile[compileGraphFromDsl]
+        Compile --> SetConfig[setGraphMessagingConfig graphId]
+    end
+
+    subgraph Runtime["runTurn"]
+        SetActive[setActiveGraphId]
+        SetActive --> Invoke[graph.invoke]
+        Invoke --> RequireConfig[requireGraphMessagingConfig]
+    end
+```
+
+- Handler modules are registered in `graph-handler-modules.ts` keyed by `graphId`.
+- `buildGraphFromSchema` resolves handlers via `graphId` from the YAML; no hardcoded `registerCfsHandlers()`.
+- `GraphMessagingConfig` is stored per `graphId`; `runTurn` calls `setActiveGraphId` before invoke so `requireGraphMessagingConfig()` (no-arg) resolves correctly.
+
+## 6. State & Option Resolution
 
 ```mermaid
 flowchart TB
@@ -200,7 +224,7 @@ flowchart TB
     session_context --> MatchTrigger
 ```
 
-## 6. Graph Compilation Pipeline
+## 7. Graph Compilation Pipeline
 
 ```mermaid
 flowchart TB
@@ -241,7 +265,7 @@ flowchart TB
     compile --> CompiledGraph
 ```
 
-## 7. Node Kinds & Handler Types
+## 8. Node Kinds & Handler Types
 
 ```mermaid
 flowchart LR

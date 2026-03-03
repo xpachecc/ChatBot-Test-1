@@ -48,13 +48,16 @@ describe("response review", () => {
     (globalThis as any).__chatOpenAIMockContent = "Corrected response.";
     const initial = createInitialState({ sessionId: "s1" });
     const graphApp = {
-      invoke: async (input: any) => ({
-        ...input,
-        messages: [
-          ...input.messages,
-          new AIMessage({ content: "Raw clarifier response.", additional_kwargs: { message_type: "industryClarifier" } }),
-        ],
-      }),
+      graphId: "cfs",
+      compiled: {
+        invoke: async (input: any) => ({
+          ...input,
+          messages: [
+            ...input.messages,
+            new AIMessage({ content: "Raw clarifier response.", additional_kwargs: { message_type: "industryClarifier" } }),
+          ],
+        }),
+      },
     };
 
     const afterInit = await runTurn(graphApp, initial, undefined);
@@ -67,13 +70,16 @@ describe("response review", () => {
     (globalThis as any).__chatOpenAIMockContent = "";
     const initial = createInitialState({ sessionId: "s2" });
     const graphApp = {
-      invoke: async (input: any) => ({
-        ...input,
-        messages: [
-          ...input.messages,
-          new AIMessage({ content: "Intro text.", additional_kwargs: { message_type: "intro" } }),
-        ],
-      }),
+      graphId: "cfs",
+      compiled: {
+        invoke: async (input: any) => ({
+          ...input,
+          messages: [
+            ...input.messages,
+            new AIMessage({ content: "Intro text.", additional_kwargs: { message_type: "intro" } }),
+          ],
+        }),
+      },
     };
 
     const afterInit = await runTurn(graphApp, initial, undefined);
@@ -85,10 +91,13 @@ describe("response review", () => {
     delete process.env.OPENAI_API_KEY;
     (globalThis as any).__chatOpenAIMockContent = "";
     const graphApp = {
-      invoke: async (input: any) => ({
-        ...input,
-        messages: [...input.messages, new AIMessage({ content: "Next question." })],
-      }),
+      graphId: "cfs",
+      compiled: {
+        invoke: async (input: any) => ({
+          ...input,
+          messages: [...input.messages, new AIMessage({ content: "Next question." })],
+        }),
+      },
     };
     const initial = createInitialState({ sessionId: "s3" });
 
