@@ -1,8 +1,8 @@
 # ──────────────────────────────────────────────────────────────────────
 # Flow YAML Template — GraphDSL v1
 # ──────────────────────────────────────────────────────────────────────
-# Standard specification for developing new LangGraph conversation flows.
-# Copy this file to clients/<tenantId>/flows/<flowId>/flow.yaml and customize.
+# Reverse-engineered from clients/default/flows/cfs-default/flow.yaml.
+# Copy to clients/<tenantId>/flows/<flowId>/flow.yaml and customize.
 #
 # NOTE: This template will not compile until handlers are registered and
 # all handlerRef/routerRef values resolve in the handler registry.
@@ -23,18 +23,11 @@ graph:
     - example
 
 # ── State contract (required) ─────────────────────────────────────────
-# Reference to shared Zod state schema. Currently only CfsStateSchema supported.
 stateContractRef: "state.CfsStateSchema"
 
 # ── Node catalog (required, min 1) ─────────────────────────────────────
 # Node kinds: router | question | ingest | compute | integration | terminal
-# - router: Passthrough; outgoing edges driven by router function
-# - question: Presents question to user, sets awaiting_user: true
-# - ingest: Processes user answer, updates state
-# - compute: AI-driven computation (selection, determination, generation)
-# - integration: External service call (search, vector retrieval)
-# - terminal: End-of-flow node
-# Optional: helperRefs (string[]) for additional helper function references
+# Optional on nodes: reads, writes, description, signalAgents
 nodes:
   # Router (required for conditional branching)
   - id: routeInitFlow
@@ -42,72 +35,133 @@ nodes:
     handlerRef: "myFlow.routeInitFlow"  # Format: <graphId>.<handlerName>
     description: "Central router — dispatches based on session state."
 
-  # Question node — option A: YAML-driven generic handler (no TypeScript needed)
+  # Greeting node — generic (sends config strings, sets initial session context)
+  - id: sendGreeting
+    kind: question
+    writes: [messages, session_context]
+    description: "Send intro messages and set first question key."
+    nodeConfig:
+      greeting:
+        stringKeys: ["myFlow.greet", "myFlow.followup"]
+        afterQuestionKey: "Q1"
+        initialSessionContext:
+          started: true
+          awaiting_user: true
+          step_question_index: 0
+          step_clarifier_used: false
+
+  # Question node — simple (single stringKey)
   - id: askFirstQuestion
     kind: question
     writes: [messages, session_context]
     description: "Ask user the first question."
     nodeConfig:
       question:
-        stringKey: "myFlow.firstQuestion"        # Key in config.strings
-        questionKey: "Q1"                         # Routing key for ingest
+        stringKey: "myFlow.firstQuestion"
+        questionKey: "Q1"
         questionPurpose: "collect_answer"
         targetVariable: "answer"
-        # allowAIRephrase: true                   # Enable AI rephrasing
-        # interpolateFrom:                        # Template interpolation
-        #   name: "user_context.first_name"
-        # prefix:                                 # Prepend state value
-        #   stateField: "user_context.first_name"
-        #   fallback: "there"
 
-  # Question node — option B: custom handler (for complex logic)
-  # - id: askComplexQuestion
+  # Question node — with interpolateFrom, allowAIRephrase, prefix, rephraseContext
+  # - id: askWithRephrase
   #   kind: question
-  #   handlerRef: "myFlow.askComplexQuestion"
   #   writes: [messages, session_context]
+  #   nodeConfig:
+  #     question:
+  #       stringKey: "myFlow.roleQuestion"
+  #       questionKey: "Q_ROLE"
+  #       questionPurpose: "collect_role"
+  #       targetVariable: "role"
+  #       allowAIRephrase: true
+  #       prefix:
+  #         stateField: "user_context.first_name"
+  #         fallback: "there"
+  #       rephraseContext:
+  #         industryField: "user_context.industry"
+  #         roleField: "user_context.persona_role"
+  #         actorRole: "SAAS Enterprise Account Executive"
+  #         tone: "conversational, curious"
+
+  # Question node — multi-part (stringKeys joined with \n\n)
+  # - id: askMultiPart
+  #   kind: question
+  #   writes: [messages, session_context]
+  #   nodeConfig:
+  #     question:
+  #       stringKeys: ["myFlow.intro", "myFlow.body", "myFlow.prompt"]
+  #       questionKey: "Q_INDUSTRY"
+  #       interpolateFrom:
+  #         name: "user_context.first_name"
 
   # Ingest node — generic (uses ingestFieldMappings from config)
   - id: ingestFirstAnswer
     kind: ingest
     reads: [messages, session_context]
-    writes: [session_context]
+    writes: [user_context, session_context]
     nodeConfig:
       ingest: {}
-    # signalAgents: false  # Optional. Per-node override.
 
-  # Greeting node — generic (sends config strings as intro messages)
-  # - id: sendGreeting
-  #   kind: question
+  # Ingest node — affirmative check, on accept ask next question
+  # - id: ingestConfirm
+  #   kind: ingest
+  #   reads: [messages, session_context]
+  #   writes: [messages, session_context]
+  #   signalAgents: false
+  #   nodeConfig:
+  #     ingest:
+  #       affirmativeCheckConfig:
+  #         rejectStringKey: "myFlow.reject"
+  #         rejectPatch:
+  #           awaiting_user: false
+  #           last_question_key: null
+  #         acceptQuestionConfig:
+  #           stringKey: "myFlow.nextQuestion"
+  #           questionKey: "Q_NEXT"
+  #           questionPurpose: "collect_next"
+  #           targetVariable: "next"
+
+  # Ingest node — affirmative check, on accept push message and patch
+  # - id: ingestConfirmWithMessage
+  #   kind: ingest
+  #   reads: [messages, session_context]
   #   writes: [messages, session_context]
   #   nodeConfig:
-  #     greeting:
-  #       stringKeys: ["myFlow.greet", "myFlow.followup"]
-  #       afterQuestionKey: "Q1"                  # Sets last_question_key after greeting
+  #     ingest:
+  #       affirmativeCheckConfig:
+  #         rejectStringKey: "myFlow.reject"
+  #         rejectPatch:
+  #           last_question_key: "Q_CONFIRM"
+  #         acceptStringKey: "myFlow.continuation"
+  #         acceptPatch:
+  #           awaiting_user: false
+  #           last_question_key: null
 
-  # Display node — generic (reads state path and pushes as AI message)
+  # Display node — generic (reads state path, optional download URL)
   # - id: displayOutput
   #   kind: compute
-  #   reads: [session_context]
+  #   reads: [readout_context, session_context]
   #   writes: [messages]
   #   nodeConfig:
   #     display:
   #       statePath: "readout_context.rendered_outputs.markdown"
-  #       fallbackMessage: "Output is ready."
+  #       fallbackMessage: "Your output is ready."
+  #       appendDownloadUrl:
+  #         stateField: "readout_context.delivery.download.url"
+  #         fallbackPattern: "/readout/{{session_id}}.md"
 
-  # Compute node (AI-driven logic)
+  # Compute node (custom handler)
   # - id: nodeCompute
   #   kind: compute
   #   handlerRef: "myFlow.nodeCompute"
   #   reads: [session_context]
   #   writes: [session_context]
-  #   description: "AI-driven computation."
+  #   signalAgents: true
 
-  # Integration node (external API, e.g. Firecrawl)
+  # Integration node (external API)
   # - id: nodeIntegration
   #   kind: integration
   #   handlerRef: "myFlow.nodeIntegration"
   #   writes: [session_context]
-  #   description: "External service call."
 
 # ── Transitions (required) ────────────────────────────────────────────
 transitions:
@@ -115,34 +169,34 @@ transitions:
     - from: routeInitFlow
       routerRef: "myFlow.routeInitFlow"
       destinations:
+        sendGreeting: sendGreeting
         askFirstQuestion: askFirstQuestion
         ingestFirstAnswer: ingestFirstAnswer
         end: "__end__"
 
   static:
+    - { from: sendGreeting, to: "__end__" }
     - { from: askFirstQuestion, to: "__end__" }
     - { from: ingestFirstAnswer, to: "__end__" }
-# Use "__end__" for graph termination (maps to LangGraph END)
 
 # ── Routing keys (optional) ───────────────────────────────────────────
-# State paths that drive routing decisions (documentation/validation)
 routingKeys:
   - session_context.step
   - session_context.last_question_key
   - session_context.awaiting_user
+  - session_context.started
+  - session_context.primitive_counter
+  - session_context.reason_trace
   - messages
 
 # ── Runtime config references (optional) ──────────────────────────────
-# When config block has inline aiPrompts/messagePolicy, compiler uses it directly.
-# Refs are fallbacks; initConfigRef only used when no inline config present.
 runtimeConfigRefs:
   modelAliases:
     default: "gpt-3.5-turbo"
   messagePolicyRef: "myFlow.messagePolicy"
   promptSetRef: "myFlow.aiPrompts"
-# Optional: initConfigRef, deliveryPolicyRef, exampleGeneratorRef, overlayPrefixRef
 
-# ── Per-graph conversation config (optional) ───────────────────────────
+# ── Per-graph conversation config (optional) ─────────────────────────
 config:
   meta:
     flowTitle: "My Flow"
@@ -167,22 +221,24 @@ config:
 
   progressRules:
     questionKeyMap:
-      S1_QUESTION: 0
+      Q1: 0
     dynamicCountField: "session_context.items"
     dynamicCountStepKey: "STEP1"
+# useCaseSelectQuestionKey: "S3_USE_CASE_SELECT"  # For useCaseSelect strategy
 
   options:
-    S1_CONFIRM: ["Yes", "No"]
+    Q_CONFIRM: ["Yes", "No"]
 
   dynamicOptions:
-    S1_SELECT:
+    Q_SELECT:
       source: service
       serviceRef: my-service.getOptions
-# Or: source: state, statePath: session_context.items, format: numbered_list
+# Or: source: state, statePath: use_case_context.items, format: numbered_list
 
   ingestFieldMappings:
-    S1_NAME: { targetField: user_context.first_name, sanitizeAs: name }
+    Q1: { targetField: user_context.answer, sanitizeAs: goal }
 # sanitizeAs: name | role | industry | goal | timeframe
+# captureObjective: true  # For goal fields
 
   continuationTriggers:
     - traceIncludes: "step1:complete"
@@ -192,12 +248,16 @@ config:
 
   routingRules:
     routeInitFlow:
-      - when: { awaiting_user: true, last_question_key: "S1_QUESTION" }
+      - when: { primitive_counter: 0, messages_empty: true }
+        goto: sendGreeting
+      - when: { started: false }
+        goto: sendGreeting
+      - when: { awaiting_user: true, last_question_key: "Q1" }
         goto: ingestFirstAnswer
       - when: { awaiting_user: false }
         goto: askFirstQuestion
       - default: end
-# when keys: primitive_counter, messages_empty, started, awaiting_user,
+# Routing when-keys: primitive_counter, messages_empty, started, awaiting_user,
 # state_path_empty, state_path_not_empty, state_path_equals, state_path_not_equals,
 # state_path_length_gt, state_path_length_lt, last_answer_equals, last_question_key,
 # trace_includes, trace_not_includes, step_equals
@@ -214,6 +274,11 @@ config:
 
   messagePolicy:
     intro: { allowAIRephrase: false, forbidFirstPerson: false }
+    name: { allowAIRephrase: false, forbidFirstPerson: false }
+    industry: { allowAIRephrase: false, forbidFirstPerson: false }
+    role: { allowAIRephrase: false, forbidFirstPerson: false }
+    industryClarifier: { allowAIRephrase: false, forbidFirstPerson: true }
+    roleClarifier: { allowAIRephrase: true, forbidFirstPerson: true }
     default: { allowAIRephrase: false, forbidFirstPerson: false }
 
   aiPrompts:
@@ -222,17 +287,22 @@ config:
       Return JSON only: {"option":"...","confidence":0.0-1.0}.
 
   strings:
-    step1.greet: "Welcome!"
-    step1.question: "What would you like to do?"
+    myFlow.greet: "Welcome!"
+    myFlow.followup: "What would you like to accomplish?"
+    myFlow.firstQuestion: "What is your primary goal?"
+    myFlow.reject: "No problem. Tell me when you're ready."
+    myFlow.continuation: "Great, let's continue."
+    myFlow.nextQuestion: "What's your next priority?"
 
   questionTemplates:
-    - key: S1_QUESTION
+    - key: Q1
       question: |
         [Step 1 – Question 1 of 1]
         {{name}}, could you share your preference?
 
   clarifierRetryText:
     step1: "Please answer with yes or no."
+# step1Ready, step2ConfirmPlan, step2Obstacle — use for multi-step flows
 
   clarificationAcknowledgement:
     - "Thank you for the clarification."
@@ -243,7 +313,15 @@ config:
     voiceCharacteristics: "Energetic and optimistic"
     behavioralIntent: "Close on a motivational note"
 
-  # readout: { sectionKeys: [...], sectionContract: "..." }  # Add when flow produces readout document
+  readout:
+    sectionKeys:
+      - framing_header
+      - section_1
+      - section_2
+    sectionContract: |
+      Section 1: Summary
+      Section 2: Details
+      Use ReadinessLevel naming and preserve order.
 
   delivery:
     outputTargets: ["download"]

@@ -1,3 +1,13 @@
+/** Parse JSON string to object, or null on invalid/empty. */
+export function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 export type DiscoveryQuestionItem = {
   question: string;
   response: string | null;

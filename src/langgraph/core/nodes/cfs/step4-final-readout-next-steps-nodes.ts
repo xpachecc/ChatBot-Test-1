@@ -17,6 +17,7 @@ import {
   retrieveReadoutDocuments,
 } from "../../services/vector.js";
 import { getModel } from "../../config/model-factory.js";
+import { parseJsonObject } from "../../helpers/parsing.js";
 import {
   buildCanonicalReadoutDocument,
   buildReadinessAssessmentPrompt,
@@ -31,16 +32,6 @@ declare global {
   // Optional test override for readout section generation.
   // eslint-disable-next-line no-var
   var __buildReadoutSectionOverride: string | null | undefined;
-}
-
-function parseJsonObject(text: string): Record<string, any> | null {
-  try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === "object") return parsed as Record<string, any>;
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 const DEFAULT_SECTION_CONTRACT = [

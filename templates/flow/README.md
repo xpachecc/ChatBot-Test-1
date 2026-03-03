@@ -4,7 +4,7 @@ Standard specification for developing new LangGraph conversation flows. Reverse-
 
 ## Quick Start
 
-1. Copy `templates/flow/flow.yaml` to `clients/<tenantId>/flows/<flowId>/flow.yaml`
+1. Copy `templates/flow/template_flow.yaml` to `clients/<tenantId>/flows/<flowId>/flow.yaml`
 2. Replace `myFlow` with your graph ID everywhere (e.g. `cfs`, `seQualify`)
 3. Define nodes, transitions, and routing rules
 4. Create handler registration module `src/langgraph/schema/<graphId>Handlers.ts` and register all handlers/routers

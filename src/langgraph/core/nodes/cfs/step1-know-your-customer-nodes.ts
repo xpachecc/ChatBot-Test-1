@@ -30,7 +30,6 @@ import { getModel } from "../../config/model-factory.js";
 import {
   isAffirmativeAnswer,
   buildRoleAssessmentMessage,
-  buildGoalSummary,
   buildKnowYourCustomerEchoFallback,
 } from "./step-flow-helpers.js";
 
@@ -40,7 +39,7 @@ declare global {
   var __knowYourCustomerEchoOverride: string | null | undefined;
 }
 
-export function nodeConfirmRoleAssessment(state: CfsState, message: string, examples: string[]): Partial<CfsState> {
+function nodeConfirmRoleAssessment(state: CfsState, message: string, examples: string[]): Partial<CfsState> {
   return {
     ...pushAI(state, message, "roleClarifier"),
     ...patchSessionContext(state, {
@@ -52,7 +51,7 @@ export function nodeConfirmRoleAssessment(state: CfsState, message: string, exam
   };
 }
 
-export async function resolvePersonaFromRole(
+async function resolvePersonaFromRole(
   state: CfsState,
   roleText: string
 ): Promise<{ personaGroup: string | null; personaGroupConfidence: number | null; examples: string[]; roleName: string | null }> {

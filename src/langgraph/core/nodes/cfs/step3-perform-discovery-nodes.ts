@@ -18,7 +18,6 @@ import {
   buildAllowedPillarMap,
   parsePillarsFromAi,
   buildPillarsSelectionPrompt,
-  normalizeUseCasePillarEntries,
   type PillarEntry,
 } from "./step-flow-helpers.js";
 import { runAiCompute } from "../../primitives/compute/ai-compute.js";

@@ -10,7 +10,7 @@ search, the `runTurn` lifecycle) is shared and never redefined per graph.
 
 ## Quick start: creating a new conversation flow
 
-1. Copy `templates/flow/flow.yaml` (or `clients/default/flows/cfs-default/flow.yaml`) as a template.
+1. Copy `templates/flow/template_flow.yaml` (or `clients/default/flows/cfs-default/flow.yaml`) as a template.
 2. Give your graph a unique `graphId` and `version`.
 3. Define your nodes, transitions, and routing.
 4. Register handlers in a new `<graphId>-handlers.ts` module.
@@ -20,9 +20,11 @@ search, the `runTurn` lifecycle) is shared and never redefined per graph.
 ## File layout
 
 ```
-templates/flow/
-  flow.yaml               # Standard flow template for new flows
-  README.md               # Template usage guide
+templates/
+  flow/
+    template_flow.yaml    # Standard flow template for new flows
+  flow/
+    README.md             # Template usage guide
 clients/<tenantId>/flows/<flowId>/
   flow.yaml               # Flow definition (topology + config) — e.g. clients/default/flows/cfs-default/flow.yaml
 docs/

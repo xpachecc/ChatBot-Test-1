@@ -1,5 +1,5 @@
 import type { CfsState } from "../../../state.js";
-import { SpanSanitizer, TimeframeSanitizer, truncateTextToWordLimit } from "../../helpers/text.js";
+import { truncateTextToWordLimit } from "../../helpers/text.js";
 import { configString, interpolate } from "../../helpers/template.js";
 import { requireGraphMessagingConfig } from "../../config/messaging.js";
 
