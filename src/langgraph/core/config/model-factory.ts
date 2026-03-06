@@ -10,6 +10,8 @@ const defaultConfigs: Record<string, ModelConfig> = {
   knowYourCustomer: { model: "gpt-3.5-turbo", temperature: 0.4, maxRetries: 1 },
   useCaseQuestions: { model: "gpt-3.5-turbo", temperature: 0.4, maxRetries: 1 },
   readout:          { model: "gpt-4o",         temperature: 0.4, maxRetries: 1 },
+  sanitizer:        { model: "gpt-3.5-turbo", temperature: 0,   maxRetries: 1 },
+  riskAssessment:   { model: "gpt-4o",         temperature: 0.8, maxRetries: 1 },
 };
 
 const overrides: Record<string, ModelConfig> = {};

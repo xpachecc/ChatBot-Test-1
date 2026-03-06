@@ -1,4 +1,4 @@
-import type { CfsState } from "../../../state.js";
+import type { CfsState } from "../../../../../src/langgraph/infra.js";
 import {
   lastHumanMessage,
   pushAI,
@@ -14,19 +14,19 @@ import {
   interpolate,
   type IngestHandler,
   PrimitivesInstance,
-} from "../../../infra.js";
-import { mergeStatePatch, patchSessionContext } from "../../../infra.js";
-import { invokeChatModelWithFallback } from "../../services/ai/invoke.js";
-import { resolvePersonaGroupFromRole } from "../../services/ai/resolve-persona.js";
-import { getPersonaGroups } from "../../services/persona-groups.js";
-import {
+  mergeStatePatch,
+  patchSessionContext,
+  invokeChatModelWithFallback,
+  resolvePersonaGroupFromRole,
+  getPersonaGroups,
   buildVectorFilters,
   retrieveMarketSegmentCandidates,
   retrieveOutcomeCandidates,
   resolveMarketSegment,
-} from "../../services/vector.js";
-import { getSubIndustrySuggestions, isIndustryVague } from "../../services/internet-search.js";
-import { getModel } from "../../config/model-factory.js";
+  getSubIndustrySuggestions,
+  isIndustryVague,
+  getModel,
+} from "../../../../../src/langgraph/infra.js";
 import {
   isAffirmativeAnswer,
   buildRoleAssessmentMessage,
@@ -34,7 +34,6 @@ import {
 } from "./step-flow-helpers.js";
 
 declare global {
-  // Optional test override for the recap node.
   // eslint-disable-next-line no-var
   var __knowYourCustomerEchoOverride: string | null | undefined;
 }

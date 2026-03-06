@@ -1,4 +1,5 @@
 import type { CfsState } from "./state.js";
+import { getByPath } from "./core/helpers/path.js";
 import { requireGraphMessagingConfig } from "./core/config/messaging.js";
 
 export type StepProgressStatus = "completed" | "in_progress" | "upcoming";
@@ -107,12 +108,8 @@ export function computeFlowProgress(state: CfsState): FlowProgress {
       } else if (strategy === "readoutReady") {
         answeredQuestions = status === "completed" ? totalQuestions : (state.readout_context?.status === "ready" ? 1 : 0);
       } else if (strategy === "dynamicCount" || (strategy === undefined && metaStep.key === dynamicCountStepKey)) {
-        const parts = dynamicCountField.split(".");
-        let arr: unknown[] = [];
-        if (parts[0] === "use_case_context" && parts[1] === "discovery_questions") {
-          arr = state.use_case_context?.discovery_questions ?? [];
-        }
-        const questions = Array.isArray(arr) ? arr : [];
+        const raw = getByPath(state, dynamicCountField);
+        const questions = Array.isArray(raw) ? raw : [];
         const total = questions.length || 3;
         totalQuestions = total;
         const responseCount = questions.filter((q: unknown) => q && typeof q === "object" && "response" in (q as object) && (q as { response?: unknown }).response != null).length;

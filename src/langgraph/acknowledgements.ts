@@ -17,6 +17,11 @@ function normalizePhrases(input: GraphMessagingConfig["clarificationAcknowledgem
   return cleaned.length ? cleaned : [DEFAULT_CLARIFICATION_ACK];
 }
 
+/**
+ * Picks a random acknowledgement phrase from the provided list.
+ * Used by prependAcknowledgementFromPhrases. For config-aware usage, use
+ * prependClarificationAcknowledgement from core/helpers/template.js instead.
+ */
 export function selectClarificationAcknowledgement(
   input: GraphMessagingConfig["clarificationAcknowledgement"] | undefined,
   options?: { random?: () => number }
@@ -28,7 +33,12 @@ export function selectClarificationAcknowledgement(
   return phrases[idx] ?? DEFAULT_CLARIFICATION_ACK;
 }
 
-export function prependClarificationAcknowledgement(
+/**
+ * Low-level: Prepends a random acknowledgement phrase to text, using an explicit phrase list.
+ * For config-aware usage (phrases from GraphMessagingConfig), use prependClarificationAcknowledgement
+ * from core/helpers/template.js instead.
+ */
+export function prependAcknowledgementFromPhrases(
   text: string,
   input: GraphMessagingConfig["clarificationAcknowledgement"] | undefined,
   options?: { random?: () => number }

@@ -9,8 +9,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "allowJs": false
   },
-  "include": ["src"]
+  "include": ["src", "clients"]
 }

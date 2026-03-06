@@ -1,15 +1,6 @@
 import type { CfsState } from "../../state.js";
+import { getByPath } from "../helpers/path.js";
 import { lastHumanMessage } from "../helpers/messaging.js";
-
-function getByPath(obj: unknown, path: string): unknown {
-  const parts = path.split(".");
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (current == null || typeof current !== "object") return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
-}
 
 export type WhenClause = Record<string, unknown>;
 

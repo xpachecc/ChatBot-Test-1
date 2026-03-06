@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { traceAsGroup } from "@langchain/core/callbacks/manager";
+import { isLangSmithEnabled } from "../helpers/tracing.js";
 import { getSupabaseClient } from "./supabase.js";
 import { CfsState, lastHumanMessage, SpanSanitizer, selectMarketSegment } from "../../infra.js";
 
@@ -62,8 +63,6 @@ type VectorSearchParams = {
 // Cached clients/models to avoid re-instantiation on each call.
 let embeddingModel: OpenAIEmbeddings | undefined;
 let metadataMapCache: Record<string, string> | undefined;
-
-const isLangSmithEnabled = () => process.env.LANGCHAIN_TRACING_V2 === "true" && Boolean(process.env.LANGCHAIN_API_KEY);
 
 async function traceLangSmithRun<T>(
   name: string,

@@ -158,6 +158,29 @@ export const PrefixConfigSchema = z.object({
   fallback: z.string().default(""),
 });
 
+export const AcceptQuestionConfigSchema = z.object({
+  stringKey: z.string().min(1),
+  questionKey: z.string().min(1),
+  questionPurpose: z.string().optional(),
+  targetVariable: z.string().optional(),
+});
+
+export const AffirmativeCheckConfigSchema = z.object({
+  rejectStringKey: z.string().min(1),
+  rejectPatch: z.record(z.string(), z.unknown()).default({}),
+  acceptStringKey: z.string().optional(),
+  acceptPatch: z.record(z.string(), z.unknown()).default({}),
+  acceptQuestionConfig: AcceptQuestionConfigSchema.optional(),
+});
+
+export const AutoIngestConfigSchema = z.object({
+  saveTo: z.string().min(1),
+  sanitizeAs: z.enum(["name", "role", "industry", "goal", "timeframe"]).optional(),
+  captureObjective: z.boolean().optional(),
+  affirmativeCheck: AffirmativeCheckConfigSchema.optional(),
+  then: z.string().optional(),
+});
+
 export const QuestionNodeConfigSchema = z.object({
   stringKey: z.string().optional(),
   stringKeys: z.array(z.string()).optional(),
@@ -168,6 +191,7 @@ export const QuestionNodeConfigSchema = z.object({
   allowAIRephrase: z.boolean().default(false),
   rephraseContext: RephraseContextSchema.optional(),
   prefix: PrefixConfigSchema.optional(),
+  autoIngest: AutoIngestConfigSchema.optional(),
 });
 
 export const GreetingNodeConfigSchema = z.object({
@@ -187,23 +211,25 @@ export const DisplayNodeConfigSchema = z.object({
   appendDownloadUrl: AppendDownloadUrlSchema.optional(),
 });
 
-export const AcceptQuestionConfigSchema = z.object({
-  stringKey: z.string().min(1),
-  questionKey: z.string().min(1),
-  questionPurpose: z.string().optional(),
-  targetVariable: z.string().optional(),
-});
-
-export const AffirmativeCheckConfigSchema = z.object({
-  rejectStringKey: z.string().min(1),
-  rejectPatch: z.record(z.string(), z.unknown()).default({}),
-  acceptStringKey: z.string().optional(),
-  acceptPatch: z.record(z.string(), z.unknown()).default({}),
-  acceptQuestionConfig: AcceptQuestionConfigSchema.optional(),
-});
-
 export const IngestNodeConfigSchema = z.object({
   affirmativeCheckConfig: AffirmativeCheckConfigSchema.optional(),
+});
+
+export const AiComputeNodeConfigSchema = z.object({
+  modelAlias: z.string().min(1),
+  systemPromptKey: z.string().min(1),
+  inputOverrides: z.record(z.string(), z.string()).default({}),
+  responseParser: z.string().min(1),
+  outputPath: z.string().min(1),
+  runName: z.string().optional(),
+});
+
+export const VectorSelectNodeConfigSchema = z.object({
+  retrieveRef: z.string().min(1),
+  selectRef: z.string().optional(),
+  fallbackRef: z.string().optional(),
+  outputPath: z.string().min(1),
+  runName: z.string().optional(),
 });
 
 export const NodeConfigSchema = z.object({
@@ -211,6 +237,8 @@ export const NodeConfigSchema = z.object({
   greeting: GreetingNodeConfigSchema.optional(),
   display: DisplayNodeConfigSchema.optional(),
   ingest: IngestNodeConfigSchema.optional(),
+  aiCompute: AiComputeNodeConfigSchema.optional(),
+  vectorSelect: VectorSelectNodeConfigSchema.optional(),
 });
 
 export const NodeDefSchema = z.object({
@@ -221,6 +249,7 @@ export const NodeDefSchema = z.object({
   reads: z.array(z.string()).default([]),
   writes: z.array(z.string()).default([]),
   description: z.string().optional(),
+  intent: z.string().optional(),
   signalAgents: z.boolean().optional(),
   nodeConfig: NodeConfigSchema.optional(),
 }).refine(
@@ -261,6 +290,7 @@ export const GraphDslSchema = z.object({
     description: z.string().optional(),
     entrypoint: z.string().min(1),
     tags: z.array(z.string()).default([]),
+    stateExtensions: z.array(z.string()).default([]),
   }),
   stateContractRef: z.string().min(1),
   nodes: z.array(NodeDefSchema).min(1),
@@ -295,3 +325,6 @@ export type IngestNodeConfig = z.infer<typeof IngestNodeConfigSchema>;
 export type AffirmativeCheckConfig = z.infer<typeof AffirmativeCheckConfigSchema>;
 export type RephraseContext = z.infer<typeof RephraseContextSchema>;
 export type PrefixConfig = z.infer<typeof PrefixConfigSchema>;
+export type AutoIngestConfig = z.infer<typeof AutoIngestConfigSchema>;
+export type AiComputeNodeConfig = z.infer<typeof AiComputeNodeConfigSchema>;
+export type VectorSelectNodeConfig = z.infer<typeof VectorSelectNodeConfigSchema>;

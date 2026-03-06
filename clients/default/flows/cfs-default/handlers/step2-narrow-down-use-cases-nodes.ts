@@ -1,26 +1,22 @@
-import type { CfsState } from "../../../state.js";
+import type { CfsState } from "../../../../../src/langgraph/infra.js";
 import {
   pushAI,
   SpanSanitizer,
   configString,
-} from "../../../infra.js";
-import { numericSelectionIngest } from "../../primitives/conversation/index.js";
-import {
+  numericSelectionIngest,
   mergeStatePatch,
   patchSessionContext,
   buildDeterministicScores,
-} from "../../../infra.js";
-import { invokeChatModelWithFallback } from "../../services/ai/invoke.js";
-import {
+  invokeChatModelWithFallback,
   retrieveUseCaseOptions,
   retrieveUseCaseQuestionBank,
-} from "../../services/vector.js";
-import { getModel } from "../../config/model-factory.js";
+  getModel,
+} from "../../../../../src/langgraph/infra.js";
 import {
   parseCompositeQuestions,
   normalizeDiscoveryQuestions,
   mergeDiscoveryQuestions,
-  normalizeWeaveValue,
+  normalizeOptionalString,
   buildUseCaseQuestionsPrompt,
   buildUseCaseSelectionPrompt,
   parseUseCaseSelections,
@@ -28,7 +24,6 @@ import {
 } from "./step-flow-helpers.js";
 
 declare global {
-  // Optional test override for discovery questions.
   // eslint-disable-next-line no-var
   var __determineUseCaseQuestionsOverride: string[] | string | null | undefined;
 }
@@ -188,9 +183,9 @@ export async function nodeDetermineUseCaseQuestions(state: CfsState): Promise<Pa
   }
 
   const model = getModel("useCaseQuestions");
-  const role = normalizeWeaveValue(state.user_context.persona_clarified_role ?? state.user_context.persona_role);
-  const industry = normalizeWeaveValue(state.user_context.industry);
-  const timeframe = normalizeWeaveValue(state.user_context.timeframe);
+  const role = normalizeOptionalString(state.user_context.persona_clarified_role ?? state.user_context.persona_role);
+  const industry = normalizeOptionalString(state.user_context.industry);
+  const timeframe = normalizeOptionalString(state.user_context.timeframe);
   const { system, user } = buildUseCaseQuestionsPrompt({
     problemStatement: state.use_case_context.objective_normalized ?? goal,
     goalStatement: goal,

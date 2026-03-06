@@ -1,5 +1,7 @@
 export * from "./messaging.js";
+export * from "./path.js";
 export * from "./state.js";
+export * from "./tracing.js";
 export * from "./template.js";
 export * from "./parsing.js";
 export * from "./normalization.js";

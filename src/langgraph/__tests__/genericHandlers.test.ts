@@ -7,6 +7,8 @@ import { clearRegistry, getRegisteredHandlerIds } from "../schema/handler-regist
 import { loadGraphDsl } from "../schema/graph-loader.js";
 import { compileGraphFromDsl } from "../schema/graph-compiler.js";
 import { lastAIMessage } from "../infra.js";
+import { createGenericHandler } from "../schema/generic-handlers.js";
+import { PARSER_REGISTRY } from "../core/primitives/compute/ai-compute.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -114,6 +116,80 @@ describe("generic handler: handlerRef precedence", () => {
 
     compileGraphFromDsl(dsl);
     warnSpy.mockRestore();
+  });
+});
+
+describe("generic handler: aiCompute config block", () => {
+  it("createGenericHandler returns a handler for aiCompute nodeConfig", () => {
+    const node = {
+      id: "testAiCompute",
+      kind: "compute" as const,
+      helperRefs: [],
+      reads: [],
+      writes: [],
+      nodeConfig: {
+        aiCompute: {
+          modelAlias: "useCaseQuestions",
+          systemPromptKey: "selectPillars",
+          inputOverrides: { outcome: "user_context.outcome" },
+          responseParser: "parsePillarsFromAi",
+          outputPath: "use_case_context.pillars",
+          runName: "testCompute",
+        },
+      },
+    } as any;
+    const handler = createGenericHandler(node, {} as any);
+    expect(typeof handler).toBe("function");
+  });
+
+  it("PARSER_REGISTRY includes built-in parsers", () => {
+    expect(PARSER_REGISTRY).toHaveProperty("parsePillarsFromAi");
+    expect(PARSER_REGISTRY).toHaveProperty("parseJsonObject");
+    expect(PARSER_REGISTRY).toHaveProperty("parseCompositeQuestions");
+    expect(PARSER_REGISTRY).toHaveProperty("identity");
+    expect(typeof PARSER_REGISTRY.identity).toBe("function");
+    expect(PARSER_REGISTRY.identity("hello")).toBe("hello");
+  });
+});
+
+describe("generic handler: vectorSelect config block", () => {
+  it("createGenericHandler returns a handler for vectorSelect nodeConfig", () => {
+    const node = {
+      id: "testVectorSelect",
+      kind: "compute" as const,
+      helperRefs: [],
+      reads: [],
+      writes: [],
+      nodeConfig: {
+        vectorSelect: {
+          retrieveRef: "retrieveOutcomeCandidates",
+          outputPath: "user_context.outcome",
+          runName: "testVectorSelect",
+        },
+      },
+    } as any;
+    const handler = createGenericHandler(node, {} as any);
+    expect(typeof handler).toBe("function");
+  });
+
+  it("vectorSelect handler returns state with session_context patch", async () => {
+    const node = {
+      id: "testVs",
+      kind: "compute" as const,
+      helperRefs: [],
+      reads: [],
+      writes: [],
+      nodeConfig: {
+        vectorSelect: {
+          retrieveRef: "testRetrieve",
+          outputPath: "user_context.outcome",
+        },
+      },
+    } as any;
+    const handler = createGenericHandler(node, {} as any);
+    const state = createInitialState({ sessionId: "vs-test" });
+    const result = await handler(state);
+    expect(result.session_context).toBeDefined();
   });
 });
 

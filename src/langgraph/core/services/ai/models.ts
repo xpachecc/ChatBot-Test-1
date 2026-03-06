@@ -1,34 +1,11 @@
 import { traceAsGroup } from "@langchain/core/callbacks/manager";
 import { ChatOpenAI } from "@langchain/openai";
+import { getModel } from "../../config/model-factory.js";
+import { isLangSmithEnabled } from "../../helpers/tracing.js";
 
-let sanitizerModel: ChatOpenAI | undefined;
-export const getSanitizerModel = (): ChatOpenAI => {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required to run the LangGraph backend.");
-  if (!sanitizerModel) {
-    sanitizerModel = new ChatOpenAI({
-      model: "gpt-3.5-turbo",
-      temperature: 0,
-      maxRetries: 1,
-    });
-  }
-  return sanitizerModel;
-};
+export const getSanitizerModel = (): ChatOpenAI => getModel("sanitizer");
 
-let riskAssessmentModel: ChatOpenAI | undefined;
-export const getRiskAssessmentModel = (): ChatOpenAI => {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required to run the LangGraph backend.");
-  if (!riskAssessmentModel) {
-    riskAssessmentModel = new ChatOpenAI({
-      model: "gpt-4o",
-      temperature: 0.8,
-      maxRetries: 1,
-    });
-  }
-  return riskAssessmentModel;
-};
-
-const isLangSmithEnabled = () =>
-  process.env.LANGCHAIN_TRACING_V2 === "true" && Boolean(process.env.LANGCHAIN_API_KEY);
+export const getRiskAssessmentModel = (): ChatOpenAI => getModel("riskAssessment");
 
 export async function traceRiskAssessmentRun<T>(
   inputs: Record<string, unknown>,

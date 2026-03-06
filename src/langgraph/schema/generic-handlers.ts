@@ -6,6 +6,8 @@ import type {
   GreetingNodeConfig,
   DisplayNodeConfig,
   IngestNodeConfig,
+  AiComputeNodeConfig,
+  VectorSelectNodeConfig,
 } from "./graph-dsl-types.js";
 import {
   PrimitivesInstance,
@@ -18,24 +20,19 @@ import {
   askWithRephrase,
   mergeStatePatch,
   patchSessionContext,
+  runAiCompute,
+  getByPath,
+  isAffirmativeAnswer,
 } from "../infra.js";
-import { isAffirmativeAnswer } from "../core/helpers/sentiment.js";
 
 type NodeHandler =
   | ((state: CfsState) => Partial<CfsState>)
   | ((state: CfsState) => Promise<Partial<CfsState>>);
 
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  return path.split(".").reduce<unknown>(
-    (cur, key) => (cur != null && typeof cur === "object" ? (cur as Record<string, unknown>)[key] : undefined),
-    obj,
-  );
-}
-
 function resolveStateField(state: CfsState, stateField: string, fallback: string): string {
   const paths = stateField.split("|");
   for (const p of paths) {
-    const val = getNestedValue(state as unknown as Record<string, unknown>, p.trim());
+    const val = getByPath(state, p.trim());
     if (val != null && String(val).trim() !== "") return String(val);
   }
   return fallback;
@@ -75,7 +72,7 @@ function createQuestionHandler(qc: QuestionNodeConfig): NodeHandler {
         if (qc.rephraseContext.roleField)
           rephraseCtx.role = resolveStateField(state, qc.rephraseContext.roleField, "");
         if (qc.rephraseContext.useCaseGroupsField) {
-          const val = getNestedValue(state as unknown as Record<string, unknown>, qc.rephraseContext.useCaseGroupsField);
+          const val = getByPath(state, qc.rephraseContext.useCaseGroupsField);
           rephraseCtx.useCaseGroups = Array.isArray(val) ? val as string[] : undefined;
         }
         if (qc.rephraseContext.actorRole) rephraseCtx.actorRole = qc.rephraseContext.actorRole;
@@ -138,7 +135,7 @@ function createGreetingHandler(gc: GreetingNodeConfig): NodeHandler {
 
 function createDisplayHandler(dc: DisplayNodeConfig): NodeHandler {
   return (state: CfsState): Partial<CfsState> => {
-    const raw = getNestedValue(state as unknown as Record<string, unknown>, dc.statePath);
+    const raw = getByPath(state, dc.statePath);
     const content = typeof raw === "string" ? raw : "";
 
     if (!content && !dc.fallbackMessage) return {};
@@ -227,6 +224,47 @@ function createIngestHandler(ic?: IngestNodeConfig): NodeHandler {
   };
 }
 
+function createAiComputeHandler(ac: AiComputeNodeConfig): NodeHandler {
+  return async (state: CfsState): Promise<Partial<CfsState>> => {
+    const inputOverrides: Record<string, unknown> = {};
+    for (const [key, statePath] of Object.entries(ac.inputOverrides ?? {})) {
+      inputOverrides[key] = getByPath(state, statePath);
+    }
+
+    const { result, statePatch } = await runAiCompute(state, {
+      modelAlias: ac.modelAlias,
+      systemPromptKey: ac.systemPromptKey,
+      inputOverrides,
+      buildUserPrompt: (params) => JSON.stringify(params),
+      responseParser: ac.responseParser,
+      outputPath: ac.outputPath,
+      runName: ac.runName ?? `aiCompute:${ac.systemPromptKey}`,
+    });
+
+    return {
+      ...statePatch,
+      ...patchSessionContext(state, { awaiting_user: false }),
+    };
+  };
+}
+
+function createVectorSelectHandler(vc: VectorSelectNodeConfig): NodeHandler {
+  return async (state: CfsState): Promise<Partial<CfsState>> => {
+    const outputParts = vc.outputPath.split(".");
+    const rootSlice = outputParts[0];
+
+    const patchResult: Record<string, unknown> = {};
+    patchResult[rootSlice] = {
+      ...((state as Record<string, any>)[rootSlice] ?? {}),
+    };
+
+    return {
+      ...(patchResult as Partial<CfsState>),
+      ...patchSessionContext(state, { awaiting_user: false }),
+    };
+  };
+}
+
 export function createGenericHandler(
   node: NodeDef,
   _config: GraphConfig,
@@ -240,10 +278,12 @@ export function createGenericHandler(
   if (nc.greeting) return createGreetingHandler(nc.greeting);
   if (nc.display) return createDisplayHandler(nc.display);
   if (nc.ingest) return createIngestHandler(nc.ingest);
+  if (nc.aiCompute) return createAiComputeHandler(nc.aiCompute);
+  if (nc.vectorSelect) return createVectorSelectHandler(nc.vectorSelect);
 
   if (node.kind === "ingest") return createIngestHandler();
 
   throw new Error(
-    `Node "${node.id}" has nodeConfig but no recognized config block (question, greeting, display, ingest).`,
+    `Node "${node.id}" has nodeConfig but no recognized config block (question, greeting, display, ingest, aiCompute, vectorSelect).`,
   );
 }

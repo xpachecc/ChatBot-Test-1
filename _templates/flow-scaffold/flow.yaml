@@ -1,0 +1,67 @@
+graph:
+  graphId: "my-flow"
+  version: "1.0.0"
+  description: "Minimal scaffold flow — greeting, one question, one custom compute node"
+  entrypoint: greet
+  tags: []
+  stateExtensions: []
+
+stateContractRef: state.CfsStateSchema
+
+nodes:
+  - id: greet
+    kind: question
+    writes: [messages, session_context]
+    nodeConfig:
+      greeting:
+        stringKeys:
+          - "greeting.welcome"
+        afterQuestionKey: "S1_NAME"
+
+  - id: askUserName
+    kind: question
+    writes: [messages, session_context]
+    nodeConfig:
+      question:
+        stringKey: "step1.nameQuestion"
+        questionKey: "S1_NAME"
+        targetVariable: "name"
+
+  - id: ingestUserName
+    kind: ingest
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+    nodeConfig:
+      ingest: {}
+
+  - id: nodeCustomCompute
+    kind: compute
+    handlerRef: "myFlow.customCompute"
+    intent: "Process the user's name with custom logic"
+
+transitions:
+  static:
+    - from: greet
+      to: askUserName
+    - from: ingestUserName
+      to: nodeCustomCompute
+    - from: nodeCustomCompute
+      to: __end__
+
+  conditional: []
+
+routingKeys: []
+
+runtimeConfigRefs: {}
+
+config:
+  strings:
+    greeting.welcome: "Welcome! Let's get started."
+    step1.nameQuestion: "What is your name?"
+  aiPrompts: {}
+  models: {}
+  messagePolicy: {}
+  ingestFieldMappings:
+    S1_NAME:
+      targetField: user_context.first_name
+      sanitizeAs: name

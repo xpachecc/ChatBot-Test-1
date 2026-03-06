@@ -1,5 +1,4 @@
 import { jest } from "@jest/globals";
-import { createInitialState } from "../infra.js";
 
 const mockSafeSearch = jest.fn(async (_query: string, _mode: string) => {
   return [] as Array<{ title: string; description: string; url: string }>;
@@ -12,11 +11,13 @@ jest.unstable_mockModule("../core/services/firecrawl.js", () => ({
   },
 }));
 
+let createInitialState: typeof import("../infra.js").createInitialState;
 let SUB_INDUSTRY_PROMPT: typeof import("../core/services/internet-search.js").SUB_INDUSTRY_PROMPT;
 let nodeInternetSearch: typeof import("../core/services/internet-search.js").nodeInternetSearch;
 let rankInternetResults: typeof import("../core/services/internet-search.js").rankInternetResults;
 
 beforeAll(async () => {
+  ({ createInitialState } = await import("../infra.js"));
   ({ SUB_INDUSTRY_PROMPT, nodeInternetSearch, rankInternetResults } = await import("../core/services/internet-search.js"));
 });
 

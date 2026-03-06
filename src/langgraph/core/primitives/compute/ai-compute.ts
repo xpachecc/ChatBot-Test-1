@@ -1,8 +1,9 @@
 import type { CfsState } from "../../../state.js";
+import { buildNestedPatch } from "../../helpers/path.js";
 import { requireGraphMessagingConfig } from "../../config/messaging.js";
 import { getModel } from "../../config/model-factory.js";
 import { invokeChatModelWithFallback } from "../../services/ai/invoke.js";
-import { parsePillarsFromAi } from "../../helpers/parsing.js";
+import { parsePillarsFromAi, parseJsonObject, parseCompositeQuestions } from "../../helpers/parsing.js";
 import type { PillarEntry } from "../../helpers/parsing.js";
 
 export type AiComputeParams = {
@@ -10,31 +11,17 @@ export type AiComputeParams = {
   systemPromptKey: string;
   inputOverrides: Record<string, unknown>;
   buildUserPrompt: (params: Record<string, unknown>) => string;
-  responseParser: "parsePillarsFromAi" | ((text: string) => unknown);
+  responseParser: string | ((text: string) => unknown);
   outputPath: string;
   runName?: string;
 };
 
-const PARSER_REGISTRY: Record<string, (text: string) => unknown> = {
+export const PARSER_REGISTRY: Record<string, (text: string) => unknown> = {
   parsePillarsFromAi: (t) => parsePillarsFromAi(t) as PillarEntry[],
+  parseJsonObject: (t) => parseJsonObject(t),
+  parseCompositeQuestions: (t) => parseCompositeQuestions(t),
+  identity: (t) => t,
 };
-
-function buildStatePatch(state: CfsState, path: string, value: unknown): Partial<CfsState> {
-  const parts = path.split(".");
-  if (parts.length === 1) return { [parts[0]]: value } as Partial<CfsState>;
-  const [slice, ...rest] = parts;
-  const sliceState = (state as Record<string, unknown>)[slice];
-  const base = sliceState && typeof sliceState === "object" ? { ...sliceState } : {};
-  let current: Record<string, unknown> = base;
-  for (let i = 0; i < rest.length - 1; i++) {
-    const part = rest[i];
-    const next = (current[part] && typeof current[part] === "object" ? { ...(current[part] as object) } : {}) as Record<string, unknown>;
-    current[part] = next;
-    current = next;
-  }
-  current[rest[rest.length - 1]] = value;
-  return { [slice]: base } as Partial<CfsState>;
-}
 
 /**
  * Generic AI compute primitive: build prompt from config + inputs, call model, parse response, write to state.
@@ -68,6 +55,6 @@ export async function runAiCompute(
     : params.responseParser;
   const result = parser ? parser(respText) : respText;
 
-  const statePatch = buildStatePatch(state, params.outputPath, result);
+  const statePatch = buildNestedPatch(state, params.outputPath, result);
   return { result, statePatch };
 }

@@ -1,6 +1,6 @@
 import type { CfsState } from "../../state.js";
 import { requireGraphMessagingConfig } from "../config/messaging.js";
-import { prependClarificationAcknowledgement as prependClarificationAcknowledgementText } from "../../acknowledgements.js";
+import { prependAcknowledgementFromPhrases } from "../../acknowledgements.js";
 
 export function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => vars[key] ?? match);
@@ -24,9 +24,15 @@ export function opsExamplesForGoal(goal: string | null | undefined, industry: st
   return ["intake processes", "data management", "reporting cycles"];
 }
 
+/**
+ * Config-aware: Prepends a random clarification acknowledgement to text.
+ * Resolves phrases from GraphMessagingConfig.clarificationAcknowledgement.
+ * Use this in graph handlers and primitives. For low-level usage with an explicit
+ * phrase list, use prependAcknowledgementFromPhrases from acknowledgements.js.
+ */
 export function prependClarificationAcknowledgement(text: string, options?: { random?: () => number }): string {
   const config = requireGraphMessagingConfig();
-  return prependClarificationAcknowledgementText(text, config.clarificationAcknowledgement, options);
+  return prependAcknowledgementFromPhrases(text, config.clarificationAcknowledgement, options);
 }
 
 export type CanonicalReadoutSection = { id: string; title: string; markdown: string };

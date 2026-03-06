@@ -1,32 +1,59 @@
-import type { CfsState } from "../../../state.js";
-import { truncateTextToWordLimit } from "../../helpers/text.js";
-import { configString, interpolate } from "../../helpers/template.js";
-import { requireGraphMessagingConfig } from "../../config/messaging.js";
-
-// ── Re-exports from core/helpers ────────────────────────────────────
-export {
+import type { CfsState } from "../../../../../src/langgraph/infra.js";
+import {
+  truncateTextToWordLimit,
+  configString,
+  interpolate,
+  requireGraphMessagingConfig,
   normalizeOptionalString,
-  normalizeOptionalString as normalizeWeaveValue,
   normalizePillarValues,
   buildCaseInsensitiveLookupMap,
-  buildCaseInsensitiveLookupMap as buildAllowedPillarMap,
   normalizeUseCasePillarEntries,
   normalizeDiscoveryQuestions,
   mergeDiscoveryQuestions,
-} from "../../helpers/normalization.js";
-export { parsePillarsFromAi, parseCompositeQuestions, extractStringValuesFromMixedArray, extractStringValuesFromMixedArray as extractRiskPhrases, sanitizeNumericSelectionInput, sanitizeNumericSelectionInput as sanitizeSelectionInput, parseNumericSelectionIndices, parseNumericSelectionIndices as parseSelectionIndices } from "../../helpers/parsing.js";
-export type { DiscoveryQuestionItem, PillarEntry } from "../../helpers/parsing.js";
-export { sanitizeDiscoveryAnswer, truncateTextToWordLimit, truncateTextToWordLimit as buildGoalSummary } from "../../helpers/text.js";
-export { isAffirmativeAnswer } from "../../helpers/sentiment.js";
+  parsePillarsFromAi,
+  parseCompositeQuestions,
+  extractStringValuesFromMixedArray,
+  sanitizeNumericSelectionInput,
+  parseNumericSelectionIndices,
+  sanitizeDiscoveryAnswer,
+  isAffirmativeAnswer,
+  buildCanonicalReadoutDocument,
+  type DiscoveryQuestionItem,
+  type PillarEntry,
+  type CanonicalReadoutSection,
+  type CanonicalReadoutDocument,
+} from "../../../../../src/langgraph/infra.js";
 
-// ── Discovery question helpers ──────────────────────────────────────
+export {
+  normalizeOptionalString,
+  normalizePillarValues,
+  buildCaseInsensitiveLookupMap,
+  normalizeUseCasePillarEntries,
+  normalizeDiscoveryQuestions,
+  mergeDiscoveryQuestions,
+  parsePillarsFromAi,
+  parseCompositeQuestions,
+  extractStringValuesFromMixedArray,
+  sanitizeNumericSelectionInput,
+  parseNumericSelectionIndices,
+  sanitizeDiscoveryAnswer,
+  truncateTextToWordLimit,
+  isAffirmativeAnswer,
+  buildCanonicalReadoutDocument,
+};
+export type { DiscoveryQuestionItem, PillarEntry, CanonicalReadoutSection, CanonicalReadoutDocument };
+
+export type UseCaseSelection = {
+  rank?: number;
+  use_case_name: string;
+  relevance_score: number;
+  engineering_insight: string;
+};
 
 export function buildDiscoveryQuestionPrompt(question: string, index: number, total: number): string {
   const header = `Question ${index + 1} of ${total}:`;
   return [header, question].filter(Boolean).join("\n");
 }
-
-// ── Pillar helpers ──────────────────────────────────────────────────
 
 export function buildPillarsSelectionPrompt(params: { outcome?: string | null; selectedUseCases: string[]; allowedPillars: string[] }) {
   const system = requireGraphMessagingConfig().aiPrompts.selectPillars;
@@ -36,8 +63,6 @@ export function buildPillarsSelectionPrompt(params: { outcome?: string | null; s
   const user = [outcomeLine, useCaseLine, allowedLine].filter(Boolean).join("\n");
   return { system, user };
 }
-
-// ── Use case question prompt builder ────────────────────────────────
 
 const DEFAULT_USE_CASE_QUESTIONS_PROMPT = [
   "System Role: You are a Senior SAAS Systems Engineer and Strategic Coach. Your tone is curious, insightful, and professionally neutral. You excel at identifying the architectural and operational friction points within a business's goals.",
@@ -110,15 +135,6 @@ export function buildUseCaseQuestionsPrompt(params: {
   return { system, user };
 }
 
-// ── Use case selection helpers ───────────────────────────────────────
-
-export type UseCaseSelection = {
-  rank?: number;
-  use_case_name: string;
-  relevance_score: number;
-  engineering_insight: string;
-};
-
 export function buildUseCaseSelectionPrompt(params: {
   personaGroup: string | null;
   goalStatement: string | null;
@@ -186,8 +202,6 @@ export function buildUseCaseSelectionMessage(params: {
   return [header, "", guidance, "", list, "", prompt].filter(Boolean).join("\n");
 }
 
-// ── KYC echo helpers ─────────────────────────────────────────────────
-
 export function buildKnowYourCustomerEchoFallback(params: {
   name: string;
   role: string;
@@ -220,8 +234,6 @@ export function buildKnowYourCustomerEchoFallback(params: {
   return [intro, "", theme, "", outcome, "", bullets, "", nameLine].join("\n");
 }
 
-// ── Role assessment helpers ──────────────────────────────────────────
-
 export function buildRoleAssessmentMessage(roleName: string | null, personaGroup: string | null, examples: string[]): string {
   const role = roleName ?? "your role";
   const group = personaGroup ?? "your persona group";
@@ -229,7 +241,6 @@ export function buildRoleAssessmentMessage(roleName: string | null, personaGroup
   return interpolate(configString("step1.roleAssessment", "Thanks, it sounds like you are the {{role}} in the {{group}}. That is often challenging given {{exampleText}}. Please correct anything that is off so your ROI from this conversation is maximized."), { role, group, exampleText });
 }
 
-// Build a focused readiness prompt for one pillar and one assessment mode.
 export function buildReadinessAssessmentPrompt(
   mode: "current" | "target",
   pillarName: string,
@@ -260,7 +271,6 @@ export function buildReadinessAssessmentPrompt(
   return { system, user };
 }
 
-// Build the Stage 1 analysis prompt payload for full readout planning.
 export function buildReadoutAnalysisPrompt(state: CfsState, readoutContext: { allowedEvidenceByDocType: Record<string, string[]> }) {
   const pillars = state.use_case_context.pillars ?? [];
   const discovery = (state.use_case_context.discovery_questions ?? []).map((item) => ({
@@ -294,12 +304,6 @@ export function buildReadoutAnalysisPrompt(state: CfsState, readoutContext: { al
   return { user };
 }
 
-/** Build a section generation prompt payload for the Stage 2 writer.
- *
- * Includes `discovery_risk_context` so the section writer has direct access
- * to the risk language captured during discovery questions, independent of
- * what the Stage 1 analysis engine chose to surface in `risk_summary_points`.
- */
 export function buildReadoutSectionPrompt(
   sectionKey: string,
   analysisJson: Record<string, unknown>,
@@ -327,7 +331,6 @@ export function buildReadoutSectionPrompt(
   return { user: JSON.stringify(payload, null, 2) };
 }
 
-// Build a structural QA payload for full readout validation.
 export function buildReadoutQaPrompt(
   draft: string,
   analysisJson: Record<string, unknown>,
@@ -351,7 +354,6 @@ export function buildReadoutQaPrompt(
   return { user: JSON.stringify(payload, null, 2) };
 }
 
-// Build a style QA payload for language quality and voice conformance.
 export function buildReadoutStyleQaPrompt(
   fullDraft: string,
   styleProfile: { rolePerspective: string; voiceCharacteristics: string; behavioralIntent: string }
@@ -362,7 +364,3 @@ export function buildReadoutStyleQaPrompt(
   };
   return { user: JSON.stringify(payload, null, 2) };
 }
-
-export { buildCanonicalReadoutDocument } from "../../helpers/template.js";
-export type { CanonicalReadoutSection, CanonicalReadoutDocument } from "../../helpers/template.js";
-

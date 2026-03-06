@@ -1,5 +1,6 @@
 import type { CfsState } from "../../state.js";
 import { requireGraphMessagingConfig } from "../../infra.js";
+import { getByPath } from "../helpers/path.js";
 import { getUseCaseGroups } from "../services/persona-groups.js";
 
 export interface ChatOptions {
@@ -9,16 +10,6 @@ export interface ChatOptions {
 const SERVICE_REGISTRY: Record<string, () => Promise<string[]>> = {
   "persona-groups.getUseCaseGroups": getUseCaseGroups,
 };
-
-function getByPath(obj: unknown, path: string): unknown {
-  const parts = path.split(".");
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (current == null || typeof current !== "object") return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
-}
 
 function matchesContinuationTrigger(
   state: CfsState,

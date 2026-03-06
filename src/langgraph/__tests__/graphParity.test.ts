@@ -138,11 +138,9 @@ describe("schema topology", () => {
     "internetSearch",
     "ingestUseCaseGroupSelection",
     "ingestConfirmStart",
-    "ingestUserName",
     "ingestIndustry",
     "ingestRole",
     "ingestConfirmRole",
-    "ingestTimeframe",
     "ingestKycConfirm",
     "knowYourCustomerEcho",
     "nodeDetermineUseCases",
@@ -167,7 +165,7 @@ describe("schema topology", () => {
 
   it("DSL has 20 static transitions", () => {
     const dsl = loadGraphDsl(CFS_YAML);
-    expect(dsl.transitions.static.length).toBe(22);
+    expect(dsl.transitions.static.length).toBe(20);
   });
 
   it("DSL has 3 conditional transition groups", () => {

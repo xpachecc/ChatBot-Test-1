@@ -23,10 +23,10 @@ afterEach(() => {
 
 describe("nodeDetermineUseCaseQuestions", () => {
   it("includes weave values only when real in the prompt", async () => {
-    const { buildUseCaseQuestionsPrompt, normalizeWeaveValue } = await import("../core/nodes/cfs/step-flow-helpers.js");
-    const role = normalizeWeaveValue("default");
-    const industry = normalizeWeaveValue("Healthcare");
-    const timeframe = normalizeWeaveValue(" ");
+    const { buildUseCaseQuestionsPrompt, normalizeOptionalString } = await import("../../../clients/default/flows/cfs-default/handlers/step-flow-helpers.js");
+    const role = normalizeOptionalString("default");
+    const industry = normalizeOptionalString("Healthcare");
+    const timeframe = normalizeOptionalString(" ");
     const prompt = buildUseCaseQuestionsPrompt({
       problemStatement: "Reduce delays",
       goalStatement: "Improve reliability",

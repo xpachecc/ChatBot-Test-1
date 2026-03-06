@@ -1,21 +1,11 @@
 import type { CfsState } from "../../../state.js";
+import { setByPath } from "../../helpers/path.js";
 import { lastHumanMessage } from "../../helpers/messaging.js";
 import { detectSentiment } from "../../helpers/sentiment.js";
 import { sanitizeUserInput } from "../../guards/sanitize.js";
 import { captureObjective } from "./capture-objective.js";
 import { acknowledgeEmotion } from "./acknowledge-emotion.js";
 import { requireGraphMessagingConfig } from "../../config/messaging.js";
-
-function setNested(obj: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split(".");
-  let current: Record<string, unknown> = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    if (!(part in current) || typeof current[part] !== "object") current[part] = {};
-    current = current[part] as Record<string, unknown>;
-  }
-  current[parts[parts.length - 1]] = value;
-}
 
 export async function applyUserAnswer(state: CfsState): Promise<Partial<CfsState>> {
   const hm = lastHumanMessage(state);
@@ -42,7 +32,7 @@ export async function applyUserAnswer(state: CfsState): Promise<Partial<CfsState
     if (parts.length === 2) {
       (next as Record<string, unknown>)[parts[1]] = sanitized;
     } else {
-      setNested(next as Record<string, unknown>, parts.slice(1).join("."), sanitized);
+      setByPath(next as Record<string, unknown>, parts.slice(1).join("."), sanitized);
     }
     (updates as Record<string, unknown>)[slice] = next;
     if (mapping.captureObjective) {

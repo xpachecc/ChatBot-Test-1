@@ -26,19 +26,16 @@ nodes:
   - id: routeInitFlow
     kind: router
     handlerRef: "cfs.routeInitFlow"
-    intent: "Route the conversation to the next appropriate step based on session state"
     description: "Central router — dispatches based on session state."
 
   - id: routePillarsLoop
     kind: router
     handlerRef: "cfs.routePillarsLoop"
-    intent: "Control the pillar analysis loop and gate readout generation"
     description: "Pillar loop router — gates readout generation."
 
   - id: routeAfterIngestUseCaseSelection
     kind: router
     handlerRef: "cfs.routeAfterIngestUseCaseSelection"
-    intent: "Route after use case selection — proceed to questions if valid, retry otherwise"
     description: "After use case selection ingest — proceed if valid, else end (retry)."
 
   # Step 1: Know Your Customer
@@ -58,6 +55,7 @@ nodes:
 
   - id: askUserName
     kind: question
+    writes: [messages, session_context]
     description: "Ask user for their name."
     nodeConfig:
       question:
@@ -65,10 +63,6 @@ nodes:
         questionKey: "S1_NAME"
         questionPurpose: "collect_name"
         targetVariable: "name"
-        autoIngest:
-          saveTo: "user_context.first_name"
-          sanitizeAs: "name"
-          then: routeInitFlow
 
   - id: askIndustry
     kind: question
@@ -106,6 +100,7 @@ nodes:
 
   - id: askTimeframe
     kind: question
+    writes: [messages, session_context]
     description: "Ask user for their timeframe."
     nodeConfig:
       question:
@@ -123,22 +118,16 @@ nodes:
           useCaseGroupsField: "use_case_context.use_case_groups"
           actorRole: "SAAS Enterprise Account Executive"
           tone: "conversational, curious"
-        autoIngest:
-          saveTo: "user_context.timeframe"
-          sanitizeAs: "timeframe"
-          then: knowYourCustomerEcho
 
   - id: internetSearch
     kind: integration
     handlerRef: "step1.nodeInternetSearch"
-    intent: "Search the internet for industry context to improve conversation relevance"
     writes: [internet_search_context, session_context]
     description: "Internet search for industry context via Firecrawl."
 
   - id: ingestUseCaseGroupSelection
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
-    intent: "Process the user's use case group selection and resolve persona"
     reads: [messages, session_context]
     writes: [use_case_context, session_context]
 
@@ -160,26 +149,37 @@ nodes:
             questionPurpose: "collect_name"
             targetVariable: "name"
 
+  - id: ingestUserName
+    kind: ingest
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+    nodeConfig:
+      ingest: {}
+
   - id: ingestIndustry
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
-    intent: "Process the user's industry input, clarify if vague, and resolve market segment"
     reads: [messages, session_context]
     writes: [user_context, session_context]
 
   - id: ingestRole
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
-    intent: "Process the user's role input and resolve persona group"
     reads: [messages, session_context]
     writes: [user_context, session_context]
 
   - id: ingestConfirmRole
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
-    intent: "Process the user's role confirmation response"
     reads: [messages, session_context]
     writes: [user_context, session_context]
+
+  - id: ingestTimeframe
+    kind: ingest
+    reads: [messages, session_context]
+    writes: [user_context, session_context]
+    nodeConfig:
+      ingest: {}
 
   - id: ingestKycConfirm
     kind: ingest
@@ -200,7 +200,6 @@ nodes:
   - id: knowYourCustomerEcho
     kind: compute
     handlerRef: "step1.nodeKnowYourCustomerEcho"
-    intent: "Echo back the collected customer information for confirmation before proceeding"
     reads: [user_context, use_case_context, vector_context]
     writes: [messages, session_context]
     description: "Echo KYC summary for user confirmation."
@@ -210,7 +209,6 @@ nodes:
   - id: nodeDetermineUseCases
     kind: compute
     handlerRef: "step2.nodeDetermineUseCases"
-    intent: "Use AI to determine and present relevant use cases based on the user's profile"
     reads: [user_context, use_case_context, vector_context]
     writes: [use_case_context, messages, session_context]
     description: "AI-driven use case determination and presentation."
@@ -218,14 +216,12 @@ nodes:
   - id: ingestUseCaseSelection
     kind: ingest
     handlerRef: "step2.nodeIngestUseCaseSelection"
-    intent: "Process the user's use case selection and validate choices"
     reads: [messages, session_context]
     writes: [use_case_context, session_context]
 
   - id: nodeDetermineUseCaseQuestions
     kind: compute
     handlerRef: "step2.nodeDetermineUseCaseQuestions"
-    intent: "Use AI to generate discovery questions tailored to the selected use cases"
     reads: [user_context, use_case_context, vector_context]
     writes: [use_case_context, session_context]
     description: "Generate discovery questions based on selected use cases."
@@ -234,7 +230,6 @@ nodes:
   - id: nodeAskUseCaseQuestions
     kind: question
     handlerRef: "step3.nodeAskUseCaseQuestions"
-    intent: "Present discovery questions to the user one at a time and collect answers"
     reads: [use_case_context, session_context]
     writes: [messages, session_context, use_case_context]
     description: "Present discovery questions in loop."
@@ -242,7 +237,6 @@ nodes:
   - id: nodeDeterminePillars
     kind: compute
     handlerRef: "step3.nodeDeterminePillars"
-    intent: "Use AI to identify and prioritize solution pillars based on discovery answers"
     reads: [use_case_context, user_context]
     writes: [use_case_context, session_context]
     description: "AI pillar selection based on discovery answers."
@@ -251,7 +245,6 @@ nodes:
   - id: nodeBuildReadout
     kind: compute
     handlerRef: "step4.nodeBuildReadout"
-    intent: "Generate the final readout document with personalized recommendations"
     reads: [user_context, use_case_context, vector_context, readout_context]
     writes: [readout_context, session_context]
     description: "Build readout document (no display)."
@@ -284,9 +277,11 @@ transitions:
         internetSearch: internetSearch
         ingestUseCaseGroupSelection: ingestUseCaseGroupSelection
         ingestConfirmStart: ingestConfirmStart
+        ingestUserName: ingestUserName
         ingestIndustry: ingestIndustry
         ingestRole: ingestRole
         ingestConfirmRole: ingestConfirmRole
+        ingestTimeframe: ingestTimeframe
         ingestKycConfirm: ingestKycConfirm
         ingestUseCaseSelection: ingestUseCaseSelection
         nodeAskUseCaseQuestions: nodeAskUseCaseQuestions
@@ -315,9 +310,11 @@ transitions:
     - { from: internetSearch,              to: "__end__" }
     - { from: ingestUseCaseGroupSelection, to: "__end__" }
     - { from: ingestConfirmStart,          to: "__end__" }
+    - { from: ingestUserName,              to: routeInitFlow }
     - { from: ingestIndustry,              to: "__end__" }
     - { from: ingestRole,                  to: "__end__" }
     - { from: ingestConfirmRole,           to: "__end__" }
+    - { from: ingestTimeframe,             to: knowYourCustomerEcho }
     - { from: ingestKycConfirm,            to: nodeDetermineUseCases }
     - { from: knowYourCustomerEcho,        to: "__end__" }
     - { from: nodeDetermineUseCases,       to: "__end__" }
@@ -436,9 +433,11 @@ config:
       format: numbered_list
 
   ingestFieldMappings:
+    S1_NAME: { targetField: user_context.first_name, sanitizeAs: name }
     S1_ROLE: { targetField: user_context.persona_role, sanitizeAs: role }
     S1_INDUSTRY: { targetField: user_context.industry, sanitizeAs: industry }
     S1_GOAL: { targetField: user_context.goal_statement, sanitizeAs: goal, captureObjective: true }
+    S1_TIMEFRAME: { targetField: user_context.timeframe, sanitizeAs: timeframe }
 
   continuationTriggers:
     - traceIncludes: "ask_use_case_questions:complete"
@@ -493,12 +492,16 @@ config:
         goto: ingestUseCaseGroupSelection
       - when: { awaiting_user: true, last_question_key: "CONFIRM_START" }
         goto: ingestConfirmStart
+      - when: { awaiting_user: true, last_question_key: "S1_NAME" }
+        goto: ingestUserName
       - when: { awaiting_user: true, last_question_key: "S1_INDUSTRY" }
         goto: ingestIndustry
       - when: { awaiting_user: true, last_question_key: "S1_ROLE" }
         goto: ingestRole
       - when: { awaiting_user: true, last_question_key: "CONFIRM_ROLE" }
         goto: ingestConfirmRole
+      - when: { awaiting_user: true, last_question_key: "S1_TIMEFRAME" }
+        goto: ingestTimeframe
       - when: { awaiting_user: true, last_question_key: "S1_KYC_CONFIRM" }
         goto: ingestKycConfirm
       - when: { awaiting_user: true, last_question_key: "S1_INTERNET_SEARCH" }

@@ -1,6 +1,6 @@
 import {
   ACKNOWLEDGEMENT_PHRASES,
-  prependClarificationAcknowledgement,
+  prependAcknowledgementFromPhrases,
   selectClarificationAcknowledgement,
 } from "../acknowledgements.js";
 
@@ -16,7 +16,7 @@ describe("acknowledgements", () => {
   });
 
   it("prepends acknowledgement to message text", () => {
-    const combined = prependClarificationAcknowledgement("Next question.", ["Understood"], { random: () => 0 });
+    const combined = prependAcknowledgementFromPhrases("Next question.", ["Understood"], { random: () => 0 });
     expect(combined).toBe("Understood Next question.");
   });
 });

@@ -1,6 +1,6 @@
 import { StateGraph, END } from "@langchain/langgraph";
 import type { CfsState, GraphMessagingConfig, MessageType } from "../state.js";
-import type { GraphDsl } from "./graph-dsl-types.js";
+import type { GraphDsl, NodeDef } from "./graph-dsl-types.js";
 import { resolveHandler, resolveRouter, resolveConfig, resolveConfigFn } from "./handler-registry.js";
 import { createGenericHandler } from "./generic-handlers.js";
 import { evaluateRoutingRules } from "../core/routing/routing-engine.js";
@@ -8,6 +8,19 @@ import { setGraphMessagingConfig } from "../core/config/messaging.js";
 import { interpolate } from "../core/helpers/template.js";
 
 const SUPPORTED_STATE_CONTRACTS = ["state.CfsStateSchema"];
+
+const BASE_STATE_FIELDS = new Set([
+  "messages",
+  "session_context",
+  "overlay_active",
+  "user_context",
+  "use_case_context",
+  "relationship_context",
+  "context_weave_index",
+  "vector_context",
+  "internet_search_context",
+  "readout_context",
+]);
 
 /**
  * Shared channel definitions derived from the canonical CfsState Zod contract.
@@ -73,6 +86,353 @@ export interface CompiledGraph {
 }
 
 /**
+ * Expand autoIngest configurations in the DSL. For each question node with
+ * autoIngest, generates a synthetic ingest node, routing rules, static
+ * transitions, and ingest field mappings. Returns a new DSL — does not mutate.
+ */
+export function expandAutoIngest(dsl: GraphDsl): GraphDsl {
+  const existingNodeIds = new Set(dsl.nodes.map((n) => n.id));
+  const existingIngestKeys = new Set<string>();
+  for (const node of dsl.nodes) {
+    if (node.kind === "ingest" && node.nodeConfig?.ingest) {
+      const questionKey = findQuestionKeyForIngest(dsl, node.id);
+      if (questionKey) existingIngestKeys.add(questionKey);
+    }
+  }
+
+  const newNodes: NodeDef[] = [];
+  const newStaticTransitions: GraphDsl["transitions"]["static"] = [];
+  const newRoutingRules: Record<string, GraphDsl["config"]["routingRules"][string]> = {};
+  const newIngestFieldMappings: Record<string, { targetField: string; sanitizeAs?: string; captureObjective?: boolean }> = {};
+
+  for (const node of dsl.nodes) {
+    const ai = node.nodeConfig?.question?.autoIngest;
+    if (!ai) continue;
+    const questionKey = node.nodeConfig!.question!.questionKey;
+
+    if (existingIngestKeys.has(questionKey)) continue;
+
+    const syntheticId = `${node.id}_ingest`;
+    if (existingNodeIds.has(syntheticId)) continue;
+
+    const ingestNode: NodeDef = {
+      id: syntheticId,
+      kind: "ingest",
+      handlerRef: undefined,
+      helperRefs: [],
+      reads: ["messages", "session_context"],
+      writes: ["user_context", "session_context"],
+      nodeConfig: {
+        ingest: ai.affirmativeCheck ? { affirmativeCheckConfig: ai.affirmativeCheck } : {},
+      },
+    };
+    newNodes.push(ingestNode);
+    existingNodeIds.add(syntheticId);
+
+    const transitionTarget = ai.then ?? "__end__";
+    newStaticTransitions.push({ from: syntheticId, to: transitionTarget });
+
+    const awaitingRule = {
+      when: { awaiting_user: true, last_question_key: questionKey },
+      goto: syntheticId,
+    };
+
+    const routerNodes = findRouterNodesForQuestion(dsl, node.id);
+    for (const routerFrom of routerNodes) {
+      if (!newRoutingRules[routerFrom]) {
+        newRoutingRules[routerFrom] = [];
+      }
+      newRoutingRules[routerFrom].push(awaitingRule);
+    }
+
+    newIngestFieldMappings[questionKey] = {
+      targetField: ai.saveTo,
+      ...(ai.sanitizeAs ? { sanitizeAs: ai.sanitizeAs } : {}),
+      ...(ai.captureObjective ? { captureObjective: ai.captureObjective } : {}),
+    };
+  }
+
+  if (newNodes.length === 0) return dsl;
+
+  const mergedRoutingRules = { ...(dsl.config?.routingRules ?? {}) };
+  for (const [routerFrom, rules] of Object.entries(newRoutingRules)) {
+    const existing = mergedRoutingRules[routerFrom] ?? [];
+    const existingGotos = new Set(existing.map((r) => r.goto).filter(Boolean));
+    const filtered = rules.filter((r) => !r.goto || !existingGotos.has(r.goto));
+    mergedRoutingRules[routerFrom] = [...filtered, ...existing];
+  }
+
+  const mergedIngestFieldMappings = {
+    ...(dsl.config?.ingestFieldMappings ?? {}),
+    ...newIngestFieldMappings,
+  };
+
+  const mergedConditional = dsl.transitions.conditional.map((ct) => {
+    const autoRules = newRoutingRules[ct.from];
+    if (!autoRules) return ct;
+    const newDests = { ...ct.destinations };
+    for (const rule of autoRules) {
+      if (rule.goto && !newDests[rule.goto]) {
+        const targetNode = rule.goto;
+        if (existingNodeIds.has(targetNode) || targetNode === "__end__") {
+          newDests[targetNode] = targetNode === "__end__" ? "__end__" : targetNode;
+        }
+      }
+    }
+    return { ...ct, destinations: newDests };
+  });
+
+  return {
+    ...dsl,
+    nodes: [...dsl.nodes, ...newNodes],
+    transitions: {
+      static: [...dsl.transitions.static, ...newStaticTransitions],
+      conditional: mergedConditional,
+    },
+    config: {
+      ...dsl.config,
+      routingRules: mergedRoutingRules,
+      ingestFieldMappings: mergedIngestFieldMappings,
+    },
+  } as GraphDsl;
+}
+
+function findQuestionKeyForIngest(dsl: GraphDsl, ingestNodeId: string): string | null {
+  const routingRules = dsl.config?.routingRules ?? {};
+  for (const rules of Object.values(routingRules)) {
+    for (const rule of rules) {
+      if (rule.goto === ingestNodeId && rule.when?.last_question_key) {
+        return rule.when.last_question_key as string;
+      }
+    }
+  }
+  return null;
+}
+
+function findRouterNodesForQuestion(dsl: GraphDsl, questionNodeId: string): string[] {
+  const routers: string[] = [];
+  for (const ct of dsl.transitions.conditional) {
+    const destinations = Object.values(ct.destinations);
+    if (destinations.includes(questionNodeId)) {
+      routers.push(ct.from);
+    }
+  }
+  if (routers.length === 0) {
+    for (const ct of dsl.transitions.conditional) {
+      routers.push(ct.from);
+    }
+  }
+  return [...new Set(routers)];
+}
+
+/**
+ * Infer reads/writes from a node's kind and nodeConfig when not explicitly provided.
+ * Returns { reads, writes } arrays. If the node has explicit reads/writes, returns those.
+ */
+export function inferReadsWrites(node: NodeDef): { reads: string[]; writes: string[] } {
+  if ((node.reads && node.reads.length > 0) || (node.writes && node.writes.length > 0)) {
+    return { reads: node.reads ?? [], writes: node.writes ?? [] };
+  }
+
+  if (node.kind === "router") {
+    return { reads: ["session_context"], writes: [] };
+  }
+
+  const nc = node.nodeConfig;
+  if (!nc) return { reads: [], writes: [] };
+
+  if (nc.question) {
+    return { reads: ["session_context"], writes: ["messages", "session_context"] };
+  }
+  if (nc.greeting) {
+    return { reads: [], writes: ["messages", "session_context"] };
+  }
+  if (nc.ingest) {
+    return { reads: ["messages", "session_context"], writes: ["user_context", "session_context"] };
+  }
+  if (nc.display) {
+    const rootSlice = nc.display.statePath.split(".")[0];
+    return { reads: [rootSlice], writes: ["messages"] };
+  }
+  if (nc.aiCompute) {
+    const outputRoot = nc.aiCompute.outputPath.split(".")[0];
+    const inputRoots = Object.values(nc.aiCompute.inputOverrides ?? {}).map((p) => p.split(".")[0]);
+    return { reads: [...new Set(inputRoots)], writes: [outputRoot, "session_context"] };
+  }
+  if (nc.vectorSelect) {
+    const outputRoot = nc.vectorSelect.outputPath.split(".")[0];
+    return { reads: ["session_context"], writes: [outputRoot, "session_context"] };
+  }
+
+  return { reads: [], writes: [] };
+}
+
+/**
+ * Build an adjacency list from transitions. Each node maps to the set of
+ * node IDs reachable from it in a single step. `__end__` is included as a
+ * sentinel target.
+ */
+function buildAdjacencyList(dsl: GraphDsl): Map<string, Set<string>> {
+  const adj = new Map<string, Set<string>>();
+  for (const node of dsl.nodes) {
+    if (!adj.has(node.id)) adj.set(node.id, new Set());
+  }
+  for (const st of dsl.transitions.static) {
+    const targets = adj.get(st.from) ?? new Set();
+    targets.add(st.to);
+    adj.set(st.from, targets);
+  }
+  for (const ct of dsl.transitions.conditional) {
+    const targets = adj.get(ct.from) ?? new Set();
+    for (const dest of Object.values(ct.destinations)) {
+      targets.add(dest);
+    }
+    adj.set(ct.from, targets);
+  }
+  return adj;
+}
+
+/**
+ * Warnings emitted by preflight routing validation. Exported for testing.
+ */
+export type PreflightWarning = { code: string; message: string };
+
+/**
+ * Validates graph routing properties and returns warnings (non-fatal).
+ * Checks: reachability, terminal paths, question-ingest pairing,
+ * routing rule completeness.
+ */
+export function preflightRoutingValidation(dsl: GraphDsl): PreflightWarning[] {
+  const warnings: PreflightWarning[] = [];
+  const nodeIds = new Set(dsl.nodes.map((n) => n.id));
+  const adj = buildAdjacencyList(dsl);
+
+  // 1. Reachability — BFS from entrypoint
+  const reachable = new Set<string>();
+  const queue = [dsl.graph.entrypoint];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (reachable.has(current)) continue;
+    reachable.add(current);
+    const targets = adj.get(current);
+    if (targets) {
+      for (const t of targets) {
+        if (t !== "__end__" && !reachable.has(t)) queue.push(t);
+      }
+    }
+  }
+  for (const nodeId of nodeIds) {
+    if (!reachable.has(nodeId)) {
+      warnings.push({
+        code: "unreachable-node",
+        message: `[preflight] Node "${nodeId}" is not reachable from entrypoint "${dsl.graph.entrypoint}".`,
+      });
+    }
+  }
+
+  // 2. Terminal path — every reachable node must eventually reach __end__
+  const canReachEnd = new Set<string>(["__end__"]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [from, targets] of adj) {
+      if (canReachEnd.has(from)) continue;
+      for (const t of targets) {
+        if (canReachEnd.has(t)) {
+          canReachEnd.add(from);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  for (const nodeId of reachable) {
+    if (!canReachEnd.has(nodeId)) {
+      warnings.push({
+        code: "no-terminal-path",
+        message: `[preflight] Node "${nodeId}" has no path that eventually reaches __end__.`,
+      });
+    }
+  }
+
+  // 3. Question-ingest pairing — every question node should reach an ingest node
+  const nodeKindMap = new Map(dsl.nodes.map((n) => [n.id, n.kind]));
+  const questionNodes = dsl.nodes.filter((n) => n.kind === "question");
+  for (const qNode of questionNodes) {
+    const visited = new Set<string>();
+    const bfsQueue = [qNode.id];
+    let foundIngest = false;
+    while (bfsQueue.length > 0) {
+      const current = bfsQueue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const targets = adj.get(current);
+      if (!targets) continue;
+      for (const t of targets) {
+        if (t === "__end__") continue;
+        if (nodeKindMap.get(t) === "ingest") { foundIngest = true; break; }
+        if (!visited.has(t)) bfsQueue.push(t);
+      }
+      if (foundIngest) break;
+    }
+    if (!foundIngest) {
+      warnings.push({
+        code: "unpaired-question",
+        message: `[preflight] Question node "${qNode.id}" has no reachable ingest node.`,
+      });
+    }
+  }
+
+  // 4. Routing rule completeness — every destination key should be producible
+  const routingRules = dsl.config?.routingRules ?? {};
+  for (const ct of dsl.transitions.conditional) {
+    const rules = routingRules[ct.from];
+    if (!rules || rules.length === 0) continue;
+    const producibleKeys = new Set<string>();
+    for (const rule of rules) {
+      if (rule.goto) producibleKeys.add(rule.goto);
+      if (rule.default) producibleKeys.add(rule.default);
+    }
+    for (const destKey of Object.keys(ct.destinations)) {
+      if (destKey === "end" || destKey === "__end__") continue;
+      if (!producibleKeys.has(destKey)) {
+        warnings.push({
+          code: "unreachable-destination",
+          message: `[preflight] Routing destination key "${destKey}" on node "${ct.from}" is not produced by any routing rule.`,
+        });
+      }
+    }
+  }
+
+  // 5. Intent annotation — warn when handlerRef nodes lack intent
+  for (const node of dsl.nodes) {
+    if (node.handlerRef && !node.intent) {
+      warnings.push({
+        code: "missing-intent",
+        message: `[preflight] handlerRef node "${node.id}" has no intent annotation.`,
+      });
+    }
+  }
+
+  // 6. State extensions — warn on undeclared state fields in reads/writes
+  const declaredExtensions = new Set(dsl.graph.stateExtensions ?? []);
+  const allowedFields = new Set([...BASE_STATE_FIELDS, ...declaredExtensions]);
+  for (const node of dsl.nodes) {
+    for (const field of [...(node.reads ?? []), ...(node.writes ?? [])]) {
+      const topLevel = field.split(".")[0];
+      if (!allowedFields.has(topLevel)) {
+        warnings.push({
+          code: "undeclared-state-field",
+          message: `[preflight] Node "${node.id}" references state field "${topLevel}" which is not a base field or declared in stateExtensions.`,
+        });
+      }
+    }
+  }
+
+  return warnings;
+}
+
+/**
  * Validates a parsed GraphDsl against the handler/router/config registries
  * and the known state contracts. Throws on any unresolvable reference.
  */
@@ -125,6 +485,12 @@ function preflight(dsl: GraphDsl): void {
 
   if (dsl.runtimeConfigRefs.initConfigRef) {
     resolveConfig(dsl.runtimeConfigRefs.initConfigRef);
+  }
+
+  // Non-fatal routing validations
+  const routingWarnings = preflightRoutingValidation(dsl);
+  for (const w of routingWarnings) {
+    console.warn(w.message);
   }
 }
 
@@ -222,7 +588,8 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
  * Rejects schemas that attempt to redefine the shared state contract.
  * Returns a CompiledGraph wrapper with graphId for scoped config lookup.
  */
-export function compileGraphFromDsl(dsl: GraphDsl): CompiledGraph {
+export function compileGraphFromDsl(inputDsl: GraphDsl): CompiledGraph {
+  const dsl = expandAutoIngest(inputDsl);
   preflight(dsl);
 
   const graphId = dsl.graph.graphId;

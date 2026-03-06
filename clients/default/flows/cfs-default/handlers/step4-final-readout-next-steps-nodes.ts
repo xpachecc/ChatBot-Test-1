@@ -1,23 +1,19 @@
-import type { CfsState } from "../../../state.js";
+import type { CfsState } from "../../../../../src/langgraph/infra.js";
 import {
   pushAI,
   requireGraphMessagingConfig,
   multiSectionDocBuilder,
   configString,
-} from "../../../infra.js";
-import { docStyleQa } from "../../primitives/compute/index.js";
-import {
+  docStyleQa,
   mergeStatePatch,
   patchSessionContext,
   buildFallbackFromSchema,
-} from "../../../infra.js";
-import { invokeChatModelWithFallback } from "../../services/ai/invoke.js";
-import {
+  invokeChatModelWithFallback,
   READOUT_DOCUMENT_TYPES,
   retrieveReadoutDocuments,
-} from "../../services/vector.js";
-import { getModel } from "../../config/model-factory.js";
-import { parseJsonObject } from "../../helpers/parsing.js";
+  getModel,
+  parseJsonObject,
+} from "../../../../../src/langgraph/infra.js";
 import {
   buildCanonicalReadoutDocument,
   buildReadinessAssessmentPrompt,
@@ -29,7 +25,6 @@ import {
 } from "./step-flow-helpers.js";
 
 declare global {
-  // Optional test override for readout section generation.
   // eslint-disable-next-line no-var
   var __buildReadoutSectionOverride: string | null | undefined;
 }
@@ -317,4 +312,3 @@ export async function nodeBuildReadout(state: CfsState): Promise<Partial<CfsStat
     ...patchSessionContext(state, { step: "STEP5_READOUT_SUMMARY_NEXT_STEPS" }),
   };
 }
-

@@ -1,4 +1,4 @@
-import type { CfsState } from "../../../state.js";
+import type { CfsState } from "../../../../../src/langgraph/infra.js";
 import {
   pushAI,
   SpanSanitizer,
@@ -8,24 +8,24 @@ import {
   interpolate,
   configString,
   questionnaireLoop,
-} from "../../../infra.js";
-import { assessAnswerRiskFromState } from "../../guards/risk.js";
-import { getAllPillars, getPillarsForOutcome } from "../../services/pillars.js";
+  assessAnswerRiskFromState,
+  getAllPillars,
+  getPillarsForOutcome,
+  runAiCompute,
+} from "../../../../../src/langgraph/infra.js";
 import {
   sanitizeDiscoveryAnswer,
   buildDiscoveryQuestionPrompt,
   normalizePillarValues,
-  buildAllowedPillarMap,
+  buildCaseInsensitiveLookupMap,
   parsePillarsFromAi,
   buildPillarsSelectionPrompt,
   type PillarEntry,
 } from "./step-flow-helpers.js";
-import { runAiCompute } from "../../primitives/compute/ai-compute.js";
 
 const S3_DISCOVERY_QUESTION_KEY = "S3_DISCOVERY_QUESTION";
 
 declare global {
-  // Optional test override for pillar selection.
   // eslint-disable-next-line no-var
   var __determinePillarsOverride: string[] | string | null | undefined;
 }
@@ -161,7 +161,7 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
     const aiEntries = Array.isArray(override)
       ? override.map((name) => ({ name, confidence: 1.0 }))
       : parsePillarsFromAi((override ?? "").toString());
-    const allowedMap = buildAllowedPillarMap(allowed);
+    const allowedMap = buildCaseInsensitiveLookupMap(allowed);
     const filtered = filterAiEntries(aiEntries, allowedMap);
     if (filtered.length) {
       return {
@@ -207,7 +207,7 @@ export async function nodeDeterminePillars(state: CfsState): Promise<Partial<Cfs
     };
   }
 
-  const allowedMap = buildAllowedPillarMap(allowed);
+  const allowedMap = buildCaseInsensitiveLookupMap(allowed);
   const filtered = filterAiEntries(aiEntries as PillarEntry[], allowedMap);
   if (filtered.length) {
     return {
