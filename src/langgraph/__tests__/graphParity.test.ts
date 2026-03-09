@@ -163,9 +163,9 @@ describe("schema topology", () => {
     expect(dsl.graph.entrypoint).toBe("routeInitFlow");
   });
 
-  it("DSL has 20 static transitions", () => {
+  it("DSL has 5 explicit static transitions (expandDefaultTransitions adds rest at compile)", () => {
     const dsl = loadGraphDsl(CFS_YAML);
-    expect(dsl.transitions.static.length).toBe(20);
+    expect(dsl.transitions.static.length).toBe(5);
   });
 
   it("DSL has 3 conditional transition groups", () => {

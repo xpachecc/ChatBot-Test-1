@@ -122,6 +122,7 @@ export const GraphConfigSchema = z.object({
     }).passthrough()])).optional(),
     goto: z.string().optional(),
     default: z.string().optional(),
+    awaitingDispatch: z.record(z.string(), z.string()).optional(),
   }))).default({}),
   signalAgents: SignalAgentConfigSchema.default({}),
 });
@@ -259,7 +260,7 @@ export const StaticTransitionSchema = z.object({
 export const ConditionalTransitionSchema = z.object({
   from: z.string().min(1),
   routerRef: z.string().min(1),
-  destinations: z.record(z.string(), z.string()),
+  destinations: z.record(z.string(), z.string()).optional(),
 });
 
 export const RuntimeConfigRefsSchema = z.object({

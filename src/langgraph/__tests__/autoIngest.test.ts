@@ -1,7 +1,7 @@
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadGraphDsl } from "../schema/graph-loader.js";
-import { expandAutoIngest, inferReadsWrites } from "../schema/graph-compiler.js";
+import { expandAutoIngest, expandAwaitingDispatch, inferReadsWrites } from "../schema/graph-compiler.js";
 import type { NodeDef, GraphDsl } from "../schema/graph-dsl-types.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -164,7 +164,7 @@ describe("DSL expansion equivalence", () => {
 
   it("expanded intent-driven YAML covers same routing rule destinations", () => {
     const intentDsl = loadGraphDsl(CFS_YAML);
-    const expanded = expandAutoIngest(intentDsl);
+    const expanded = expandAwaitingDispatch(expandAutoIngest(intentDsl));
     let originalDsl: GraphDsl | null = null;
     try {
       originalDsl = loadGraphDsl(CFS_YAML_BAK);

@@ -170,16 +170,20 @@ export function expandAutoIngest(dsl: GraphDsl): GraphDsl {
   const mergedConditional = dsl.transitions.conditional.map((ct) => {
     const autoRules = newRoutingRules[ct.from];
     if (!autoRules) return ct;
-    const newDests = { ...ct.destinations };
-    for (const rule of autoRules) {
-      if (rule.goto && !newDests[rule.goto]) {
-        const targetNode = rule.goto;
-        if (existingNodeIds.has(targetNode) || targetNode === "__end__") {
-          newDests[targetNode] = targetNode === "__end__" ? "__end__" : targetNode;
+    const hadDests = ct.destinations && Object.keys(ct.destinations).length > 0;
+    const newDests = hadDests ? { ...ct.destinations! } : undefined;
+    if (hadDests) {
+      for (const rule of autoRules) {
+        if (rule.goto && !newDests![rule.goto]) {
+          const targetNode = rule.goto;
+          if (existingNodeIds.has(targetNode) || targetNode === "__end__") {
+            newDests![targetNode] = targetNode === "__end__" ? "__end__" : targetNode;
+          }
         }
       }
+      return { ...ct, destinations: newDests };
     }
-    return { ...ct, destinations: newDests };
+    return ct;
   });
 
   return {
@@ -212,7 +216,7 @@ function findQuestionKeyForIngest(dsl: GraphDsl, ingestNodeId: string): string |
 function findRouterNodesForQuestion(dsl: GraphDsl, questionNodeId: string): string[] {
   const routers: string[] = [];
   for (const ct of dsl.transitions.conditional) {
-    const destinations = Object.values(ct.destinations);
+    const destinations = Object.values(ct.destinations ?? {});
     if (destinations.includes(questionNodeId)) {
       routers.push(ct.from);
     }
@@ -223,6 +227,126 @@ function findRouterNodesForQuestion(dsl: GraphDsl, questionNodeId: string): stri
     }
   }
   return [...new Set(routers)];
+}
+
+type RoutingRuleEntry = NonNullable<GraphDsl["config"]>["routingRules"][string][number];
+
+/**
+ * Expands awaitingDispatch shorthand into explicit when/goto rules.
+ * Each awaitingDispatch entry becomes { when: { awaiting_user: true, last_question_key: KEY }, goto: TARGET }.
+ * Skips keys already present in existing when clauses. Inserts expanded rules before the default rule.
+ */
+export function expandAwaitingDispatch(dsl: GraphDsl): GraphDsl {
+  const routingRules = dsl.config?.routingRules ?? {};
+  const expanded: typeof routingRules = {};
+
+  for (const [routerFrom, rules] of Object.entries(routingRules)) {
+    const existingKeys = new Set<string>();
+    for (const r of rules) {
+      if (r.when?.last_question_key) {
+        existingKeys.add(String(r.when.last_question_key));
+      }
+    }
+
+    const newRules: RoutingRuleEntry[] = [];
+    for (const r of rules) {
+      const ad = (r as RoutingRuleEntry & { awaitingDispatch?: Record<string, string> }).awaitingDispatch;
+      if (ad) {
+        for (const [key, target] of Object.entries(ad)) {
+          if (existingKeys.has(key)) continue;
+          newRules.push({
+            when: { awaiting_user: true, last_question_key: key },
+            goto: target,
+          });
+          existingKeys.add(key);
+        }
+        continue;
+      }
+      newRules.push(r);
+    }
+
+    expanded[routerFrom] = newRules;
+  }
+
+  if (Object.keys(expanded).length === 0) return dsl;
+  return {
+    ...dsl,
+    config: {
+      ...dsl.config,
+      routingRules: expanded,
+    },
+  } as GraphDsl;
+}
+
+/**
+ * Auto-generates destinations for conditional transitions when missing.
+ * Derives from routing rules: union of rule.goto, rule.default, plus { end: "__end__" }.
+ * Throws if destinations is missing and no routingRules exist for the from node.
+ */
+export function expandDestinations(dsl: GraphDsl): GraphDsl {
+  const nodeIds = new Set(dsl.nodes.map((n) => n.id));
+  const routingRules = dsl.config?.routingRules ?? {};
+
+  const conditional = dsl.transitions.conditional.map((ct) => {
+    if (ct.destinations && Object.keys(ct.destinations).length > 0) {
+      return ct;
+    }
+    const rules = routingRules[ct.from];
+    if (!rules || rules.length === 0) {
+      throw new Error(
+        `Conditional transition for node "${ct.from}" has no destinations and no routing rules to derive them from.`
+      );
+    }
+    const dests: Record<string, string> = { end: "__end__" };
+    const toEnd = (v: string) => (v === "__end__" || v === "end" ? "__end__" : v);
+    for (const r of rules) {
+      if (r.goto) dests[r.goto] = toEnd(r.goto);
+      if (r.default) dests[r.default] = toEnd(r.default);
+    }
+    for (const [k, v] of Object.entries(dests)) {
+      if (v !== "__end__" && !nodeIds.has(v)) delete dests[k];
+    }
+    return { ...ct, destinations: dests };
+  });
+
+  return {
+    ...dsl,
+    transitions: {
+      ...dsl.transitions,
+      conditional,
+    },
+  } as GraphDsl;
+}
+
+/**
+ * Adds default static transitions for nodes that don't have one.
+ * Nodes of kind question, ingest, compute, or integration that don't appear as from
+ * in any static transition get { from: nodeId, to: "__end__" }.
+ * Router and terminal nodes are skipped.
+ */
+export function expandDefaultTransitions(dsl: GraphDsl): GraphDsl {
+  const staticFrom = new Set(dsl.transitions.static.map((s) => s.from));
+  const nodeKindMap = new Map(dsl.nodes.map((n) => [n.id, n.kind]));
+  const skipKinds = new Set(["router", "terminal"]);
+
+  const add: Array<{ from: string; to: string }> = [];
+  for (const node of dsl.nodes) {
+    if (skipKinds.has(node.kind)) continue;
+    if (staticFrom.has(node.id)) continue;
+    const kind = node.kind as string;
+    if (["question", "ingest", "compute", "integration"].includes(kind)) {
+      add.push({ from: node.id, to: "__end__" });
+    }
+  }
+
+  if (add.length === 0) return dsl;
+  return {
+    ...dsl,
+    transitions: {
+      ...dsl.transitions,
+      static: [...dsl.transitions.static, ...add],
+    },
+  } as GraphDsl;
 }
 
 /**
@@ -284,7 +408,7 @@ function buildAdjacencyList(dsl: GraphDsl): Map<string, Set<string>> {
   }
   for (const ct of dsl.transitions.conditional) {
     const targets = adj.get(ct.from) ?? new Set();
-    for (const dest of Object.values(ct.destinations)) {
+    for (const dest of Object.values(ct.destinations ?? {})) {
       targets.add(dest);
     }
     adj.set(ct.from, targets);
@@ -393,7 +517,7 @@ export function preflightRoutingValidation(dsl: GraphDsl): PreflightWarning[] {
       if (rule.goto) producibleKeys.add(rule.goto);
       if (rule.default) producibleKeys.add(rule.default);
     }
-    for (const destKey of Object.keys(ct.destinations)) {
+    for (const destKey of Object.keys(ct.destinations ?? {})) {
       if (destKey === "end" || destKey === "__end__") continue;
       if (!producibleKeys.has(destKey)) {
         warnings.push({
@@ -467,7 +591,8 @@ function preflight(dsl: GraphDsl): void {
     if (!rules || rules.length === 0) {
       resolveRouter(ct.routerRef);
     }
-    for (const dest of Object.values(ct.destinations)) {
+    const dests = ct.destinations ?? {};
+    for (const dest of Object.values(dests)) {
       if (dest !== "__end__" && !nodeIds.has(dest)) {
         throw new Error(`Conditional destination "${dest}" is not a declared node.`);
       }
@@ -589,7 +714,10 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
  * Returns a CompiledGraph wrapper with graphId for scoped config lookup.
  */
 export function compileGraphFromDsl(inputDsl: GraphDsl): CompiledGraph {
-  const dsl = expandAutoIngest(inputDsl);
+  let dsl = expandAutoIngest(inputDsl);
+  dsl = expandAwaitingDispatch(dsl);
+  dsl = expandDestinations(dsl);
+  dsl = expandDefaultTransitions(dsl);
   preflight(dsl);
 
   const graphId = dsl.graph.graphId;
@@ -624,7 +752,8 @@ export function compileGraphFromDsl(inputDsl: GraphDsl): CompiledGraph {
   for (const ct of dsl.transitions.conditional) {
     const rules = routingRules[ct.from];
     const destMap: Record<string, string> = {};
-    for (const [key, value] of Object.entries(ct.destinations)) {
+    const dests = ct.destinations ?? {};
+    for (const [key, value] of Object.entries(dests)) {
       destMap[key] = value === "__end__" ? END : value;
     }
     const router =

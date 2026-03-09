@@ -265,58 +265,19 @@ transitions:
   conditional:
     - from: routeInitFlow
       routerRef: "cfs.routeInitFlow"
-      destinations:
-        sendIntroAndAskUseCaseGroup: sendIntroAndAskUseCaseGroup
-        askUserName: askUserName
-        askIndustry: askIndustry
-        askRole: askRole
-        askTimeframe: askTimeframe
-        internetSearch: internetSearch
-        ingestUseCaseGroupSelection: ingestUseCaseGroupSelection
-        ingestConfirmStart: ingestConfirmStart
-        ingestIndustry: ingestIndustry
-        ingestRole: ingestRole
-        ingestConfirmRole: ingestConfirmRole
-        ingestKycConfirm: ingestKycConfirm
-        ingestUseCaseSelection: ingestUseCaseSelection
-        nodeAskUseCaseQuestions: nodeAskUseCaseQuestions
-        nodeDeterminePillars: nodeDeterminePillars
-        nodeBuildReadout: nodeBuildReadout
-        end: "__end__"
 
     - from: routePillarsLoop
       routerRef: "cfs.routePillarsLoop"
-      destinations:
-        nodeBuildReadout: nodeBuildReadout
-        end: "__end__"
 
     - from: routeAfterIngestUseCaseSelection
       routerRef: "cfs.routeAfterIngestUseCaseSelection"
-      destinations:
-        nodeDetermineUseCaseQuestions: nodeDetermineUseCaseQuestions
-        end: "__end__"
 
   static:
-    - { from: sendIntroAndAskUseCaseGroup, to: "__end__" }
-    - { from: askUserName,                 to: "__end__" }
-    - { from: askIndustry,                 to: "__end__" }
-    - { from: askRole,                     to: "__end__" }
-    - { from: askTimeframe,                to: "__end__" }
-    - { from: internetSearch,              to: "__end__" }
-    - { from: ingestUseCaseGroupSelection, to: "__end__" }
-    - { from: ingestConfirmStart,          to: "__end__" }
-    - { from: ingestIndustry,              to: "__end__" }
-    - { from: ingestRole,                  to: "__end__" }
-    - { from: ingestConfirmRole,           to: "__end__" }
     - { from: ingestKycConfirm,            to: nodeDetermineUseCases }
-    - { from: knowYourCustomerEcho,        to: "__end__" }
-    - { from: nodeDetermineUseCases,       to: "__end__" }
     - { from: ingestUseCaseSelection,      to: routeAfterIngestUseCaseSelection }
     - { from: nodeDetermineUseCaseQuestions, to: nodeAskUseCaseQuestions }
-    - { from: nodeAskUseCaseQuestions,     to: "__end__" }
     - { from: nodeDeterminePillars,        to: routePillarsLoop }
     - { from: nodeBuildReadout,            to: nodeDisplayReadout }
-    - { from: nodeDisplayReadout,           to: "__end__" }
 
 # ── Runtime config references ────────────────────────────────────────
 runtimeConfigRefs:
@@ -452,24 +413,16 @@ config:
           step_equals: "STEP4_BUILD_READOUT"
           state_path_not_equals: { path: "readout_context.status", value: "ready" }
         goto: nodeBuildReadout
-      - when: { awaiting_user: true, last_question_key: "S1_USE_CASE_GROUP" }
-        goto: ingestUseCaseGroupSelection
-      - when: { awaiting_user: true, last_question_key: "CONFIRM_START" }
-        goto: ingestConfirmStart
-      - when: { awaiting_user: true, last_question_key: "S1_INDUSTRY" }
-        goto: ingestIndustry
-      - when: { awaiting_user: true, last_question_key: "S1_ROLE" }
-        goto: ingestRole
-      - when: { awaiting_user: true, last_question_key: "CONFIRM_ROLE" }
-        goto: ingestConfirmRole
-      - when: { awaiting_user: true, last_question_key: "S1_KYC_CONFIRM" }
-        goto: ingestKycConfirm
-      - when: { awaiting_user: true, last_question_key: "S1_INTERNET_SEARCH" }
-        goto: internetSearch
-      - when: { awaiting_user: true, last_question_key: "S3_USE_CASE_SELECT" }
-        goto: ingestUseCaseSelection
-      - when: { awaiting_user: true, last_question_key: "S3_DISCOVERY_QUESTION" }
-        goto: nodeAskUseCaseQuestions
+      - awaitingDispatch:
+          S1_USE_CASE_GROUP: ingestUseCaseGroupSelection
+          CONFIRM_START: ingestConfirmStart
+          S1_INDUSTRY: ingestIndustry
+          S1_ROLE: ingestRole
+          CONFIRM_ROLE: ingestConfirmRole
+          S1_KYC_CONFIRM: ingestKycConfirm
+          S1_INTERNET_SEARCH: internetSearch
+          S3_USE_CASE_SELECT: ingestUseCaseSelection
+          S3_DISCOVERY_QUESTION: nodeAskUseCaseQuestions
       - default: end
     routePillarsLoop:
       - when: { state_path_equals: { path: "readout_context.status", value: "ready" } }
