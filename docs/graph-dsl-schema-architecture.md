@@ -35,12 +35,15 @@ The GraphDSL is a declarative YAML schema that fully describes a conversation fl
 
 ```
 GraphDslSchema
+├── schemaVersion           # Required integer (1, 2, …); gates expansion passes
+│
 ├── graph                   # Identity & metadata
 │   ├── graphId             # Unique flow identifier (e.g. "cfs")
 │   ├── version             # Semantic version
 │   ├── description         # Human-readable purpose
 │   ├── entrypoint          # First node to execute
-│   └── tags[]              # Categorization
+│   ├── tags[]              # Categorization
+│   └── stateExtensions[]   # Extra state fields beyond BASE_STATE_FIELDS
 │
 ├── stateContractRef        # Zod schema reference (e.g. "state.CfsStateSchema")
 │
@@ -48,10 +51,8 @@ GraphDslSchema
 │   └── NodeDef             # (see Section 4)
 │
 ├── transitions             # The "wiring" between nodes
-│   ├── static[]            # Unconditional edges (from → to)
-│   └── conditional[]       # Branching edges (from → router → destinations)
-│
-├── routingKeys[]           # State paths that influence routing (documentation)
+│   ├── static[]            # Unconditional edges (from → to); v2: omit → __end__ for defaults
+│   └── conditional[]       # Branching edges (from → router → destinations); v2: destinations optional
 │
 ├── runtimeConfigRefs       # Registry lookups for model aliases, policies
 │
@@ -100,11 +101,11 @@ GraphDslSchema
 The compilation pipeline transforms YAML → validated DSL → runnable LangGraph StateGraph.
 
 ```
-   ┌─────────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────────┐
-   │  flow.yaml  │───▶│  YAML parse  │───▶│  Zod validate │───▶│  preflight() │
-   │  (on disk)  │    │  (yaml lib)  │    │ (GraphDslSchema)   │ (registry    │
-   └─────────────┘    └──────────────┘    └───────────────┘    │  checks)     │
-                                                                └──────┬───────┘
+   ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────────┐
+   │  flow.yaml  │───▶│  YAML parse  │───▶│ resolveFile  │───▶│  Zod validate │───▶│  preflight() │
+   │  (on disk)  │    │  (yaml lib)  │    │  Refs ($file) │    │ (GraphDslSchema)   │ (registry    │
+   └─────────────┘    └──────────────┘    └──────────────┘    └───────────────┘    │  checks)     │
+                                                                                    └──────┬───────┘
                                                                        │
    ┌──────────────────────────────────────────────────────────────────▼─────┐
    │                   buildGraphFromSchema(yamlPath) — graph.ts            │
@@ -119,31 +120,38 @@ The compilation pipeline transforms YAML → validated DSL → runnable LangGrap
    │                                                                        │
    │  3. compileGraphFromDsl(dsl) ──────────────────────────────────────┐   │
    │     │                                                              │   │
-   │     │  a. preflight(dsl) — validates all refs resolve:             │   │
+   │     │  a. expandAutoIngest(dsl) — synthetic ingest nodes          │   │
+   │     │  b. [v2] expandAwaitingDispatch(dsl) — awaitingDispatch → rules │
+   │     │  c. [v2] expandDestinations(dsl) — derive destinations from rules │
+   │     │  d. [v2] expandDefaultTransitions(dsl) — add → __end__ for defaults │
+   │     │  e. preflight(dsl) — validates all refs resolve:            │   │
    │     │     ├── stateContractRef ∈ supported contracts               │   │
    │     │     ├── entrypoint ∈ declared nodeIds                        │   │
    │     │     ├── every handlerRef → resolveHandler()                  │   │
    │     │     ├── every routerRef → routingRules exist OR resolveRouter│   │
-   │     │     └── every transition target ∈ nodeIds ∪ {"__end__"}     │   │
+   │     │     ├── every transition target ∈ nodeIds ∪ {"__end__"}     │   │
+   │     │     └── preflightRoutingValidation() — non-fatal warnings   │   │
    │     │                                                              │   │
-   │     │  b. buildGraphMessagingConfigFromDsl(dsl)                    │   │
+   │     │  f. buildGraphMessagingConfigFromDsl(dsl)                    │   │
+   │     │     ├── Merges per-step questionKeyMap into progressRules    │   │
    │     │     ├── Inline config present? → setGraphMessagingConfig()   │   │
    │     │     └── No inline config? → resolveConfig(initConfigRef)()  │   │
    │     │                                                              │   │
-   │     │  c. For each node:                                           │   │
+   │     │  g. For each node:                                           │   │
    │     │     ├── Has handlerRef? → resolveHandler(ref) from registry  │   │
    │     │     └── Has nodeConfig? → createGenericHandler(node, config) │   │
-   │     │         └── Delegates to question/greeting/display/ingest    │   │
+   │     │         └── Delegates to question/greeting/display/ingest/   │   │
+   │     │             aiCompute/vectorSelect factory                  │   │
    │     │                                                              │   │
-   │     │  d. graph.setEntryPoint(entrypoint)                          │   │
+   │     │  h. graph.setEntryPoint(entrypoint)                          │   │
    │     │                                                              │   │
-   │     │  e. For each conditional transition:                         │   │
+   │     │  i. For each conditional transition:                        │   │
    │     │     ├── routingRules exist? → evaluateRoutingRules()         │   │
    │     │     └── else → resolveRouter(routerRef) from registry        │   │
    │     │                                                              │   │
-   │     │  f. For each static transition: graph.addEdge(from, to)      │   │
+   │     │  j. For each static transition: graph.addEdge(from, to)      │   │
    │     │                                                              │   │
-   │     │  g. Return CompiledGraph { graphId, compiled: graph.compile()}│   │
+   │     │  k. Return CompiledGraph { graphId, compiled: graph.compile()}│   │
    │     └──────────────────────────────────────────────────────────────┘   │
    └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -152,8 +160,8 @@ The compilation pipeline transforms YAML → validated DSL → runnable LangGrap
 
 | File | Role |
 |------|------|
-| `schema/graph-loader.ts` | `loadGraphDsl()` — YAML parse + Zod validation |
-| `schema/graph-compiler.ts` | `compileGraphFromDsl()` — preflight + StateGraph assembly |
+| `schema/graph-loader.ts` | `loadGraphDsl()` — YAML parse + resolveFileRefs ($file) + Zod validation |
+| `schema/graph-compiler.ts` | `compileGraphFromDsl()`, expansions, `preflightRoutingValidation()` |
 | `schema/handler-registry.ts` | Global Maps for handlers, routers, configs |
 | `schema/graph-handler-modules.ts` | Per-graphId handler registration dispatch |
 | `schema/cfs-handlers.ts` | CFS-specific handler registration |
@@ -363,6 +371,22 @@ The `evaluateWhen()` function supports these built-in predicates and state path 
 
 The `config` block (GraphConfigSchema) holds all data a flow needs at runtime. It is compiled into a `GraphMessagingConfig` object and stored per-graphId.
 
+### $file References and flow-content.yaml
+
+Long-form content (aiPrompts, strings, questionTemplates, etc.) can be extracted to a sibling `flow-content.yaml` and referenced via `$file`:
+
+```yaml
+config:
+  aiPrompts:        { $file: "./flow-content.yaml#aiPrompts" }
+  strings:          { $file: "./flow-content.yaml#strings" }
+  questionTemplates: { $file: "./flow-content.yaml#questionTemplates" }
+```
+
+- `resolveFileRefs` runs before Zod validation (in `loadGraphDsl`).
+- `$file: "./path.yaml"` — replaces with full parsed file contents.
+- `$file: "./path.yaml#fragment"` — replaces with the top-level key named `fragment`.
+- Throws on missing file, missing fragment, or circular refs.
+
 ```
 GraphConfigSchema
 │
@@ -371,8 +395,9 @@ GraphConfigSchema
 │   └── steps[] ──────────────────── FlowStepMeta
 │       ├── key, label, order
 │       ├── countable, totalQuestions
-│       └── countingStrategy ──── questionKeyMap | useCaseSelect
-│                                  readoutReady | dynamicCount
+│       ├── countingStrategy ──── questionKeyMap | useCaseSelect
+│       │                          readoutReady | dynamicCount
+│       └── questionKeyMap?       # Per-step (v2); merged into progressRules
 │
 ├── strings                     # All user-facing text, keyed by dotted name
 │   └── { "step1.greet": "Welcome!", ... }
@@ -381,7 +406,7 @@ GraphConfigSchema
 │   └── { "selectPersonaGroup": "You select...", ... }
 │
 ├── routingRules                # Per-router ordered rule arrays
-│   └── { routeInitFlow: [ { when: {...}, goto: "..." }, ... ] }
+│   └── { routeInitFlow: [ { when: {...}, goto: "..." }, { awaitingDispatch: {...} }, { default: "end" } ] }
 │
 ├── models                      # Named model configurations
 │   └── { default: { model, temperature, maxRetries } }
