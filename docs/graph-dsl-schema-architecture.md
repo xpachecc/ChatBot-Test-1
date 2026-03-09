@@ -611,7 +611,11 @@ CfsState
 │   ├── use_case_groups[], selected_use_cases[]
 │   ├── discovery_questions[], pillars[]
 │   └── use_cases_prioritized[]
-├── relationship_context    # Trust/sentiment tracking + signal agent results
+├── relationship_context    # Trust/sentiment/intent tracking + signal agent results
+│   ├── overall_conversation_score, engagement_score, sentiment_score, trust_score, intent_score
+│   ├── signal_history[]   # Turn records (engagement, sentiment, trust, intent, confidence, source)
+│   ├── signal_events[]    # Detected events (engagement_declining, sentiment_shift_negative, etc.)
+│   └── signal_actions[]   # Suggested actions (slow_down_pacing, increase_empathy, etc.)
 ├── vector_context          # Retrieved vector snippets
 ├── internet_search_context # Firecrawl results
 ├── readout_context         # Generated readout document
@@ -657,21 +661,22 @@ Each user message triggers one `runTurn()` call:
 │  2. setActiveGraphId(graphApp.graphId)                                  │
 │     └── So requireGraphMessagingConfig() resolves to correct config     │
 │                                                                          │
-│  3. Start signalOrchestrator in parallel (if enabled)                   │
-│     └── Background agents analyze user text for trust/sentiment         │
+│  3. Read pending signal from store (deferred merge from prior turn)     │
+│     └── Merge into relationship_context before graph invoke              │
 │                                                                          │
-│  4. graphApp.compiled.invoke(nextState)                                 │
+│  4. Fire signalOrchestrator asynchronously (if enabled) — no await       │
+│     └── Orchestrator writes result to store on completion (turn N+1)     │
+│                                                                          │
+│  5. graphApp.compiled.invoke(stateWithPriorSignals)                      │
 │     └── LangGraph executes: entrypoint → router → node → edges → ...   │
 │     └── Each node handler runs, returns Partial<CfsState>               │
 │     └── Reducers merge patches into state                               │
-│                                                                          │
-│  5. Merge signal agent results into relationship_context                │
 │                                                                          │
 │  6. Post-process last AI message:                                       │
 │     ├── Prepend clarification ack if step_clarifier_used                │
 │     └── AI rephrase if messagePolicy.allowAIRephrase                   │
 │                                                                          │
-│  7. Return final CfsState                                               │
+│  7. Return final CfsState (signals from current turn merge on next turn) │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -942,17 +947,23 @@ External integrations, AI service wrappers, and data access layers.
 
 ### 14.6 Signal Agents
 
-Background heuristic agents that run in parallel with graph execution to assess user engagement, sentiment, and trust.
+Background heuristic (and optional LLM) agents that run asynchronously (fire-and-forget) to assess user engagement, sentiment, trust, and intent. Results are written to a session-scoped store and merged into `relationship_context` at the start of the *next* turn (deferred merge), ensuring zero user-observable latency. When `llmEnabled` is true, the orchestrator runs the LLM agent in parallel with heuristics and prefers LLM results when available.
 
 | Name | Description |
 |------|-------------|
-| **runSignalOrchestrator** | Orchestrator: runs all three signal agents in parallel with a TTL timeout, aggregates results using EMA (Exponential Moving Average), maintains signal history, and computes composite `overall_conversation_score`. |
+| **runSignalOrchestrator** | Orchestrator: runs four heuristic agents (engagement, sentiment, trust, intent) in parallel with optional LLM assessment, TTL timeout, aggregates via EMA with dynamic confidence weighting, maintains signal history, detects events, suggests actions, and computes composite `overall_conversation_score`. Caller writes result to signal store on completion (fire-and-forget). |
+| **getPendingSignal** / **setPendingSignal** | Signal store: session-scoped in-memory store for deferred merge. Read at turn start, write when orchestrator completes. |
 | **runEngagementAgent** | Heuristic engagement scoring: evaluates follow-up ratio, elaboration depth, back-channeling, and topic continuity from user text. No LLM calls. |
-| **runSentimentAgent** | Heuristic sentiment scoring: evaluates base valence, intensifier magnitude, pivot clauses, and future orientation from user text. No LLM calls. |
+| **runSentimentAgent** | Heuristic sentiment scoring: evaluates base valence (lexicon + negation), intensifier magnitude, pivot clauses, and future orientation from user text. No LLM calls. |
 | **runTrustAgent** | Heuristic trust scoring: evaluates collaborative pronoun usage, vulnerability transparency, specificity/detail, and consistency alignment from user text. No LLM calls. |
-| **extractEngagementFeatures** | Feature extractor: regex-based extraction of engagement signals (questions, elaboration, acknowledgements). |
-| **extractSentimentFeatures** | Feature extractor: regex-based extraction of sentiment signals (valence, intensifiers, pivots, future orientation). |
+| **runIntentAgent** | Heuristic intent scoring: evaluates cooperation, rushing, deflection, challenge, and confusion from user text. No LLM calls. |
+| **runLlmSignalAgent** | Optional LLM assessment: uses `signalAssessment` model alias to produce all four dimension scores. Enabled via `signalAgents.llmEnabled`. |
+| **detectSignalEvents** | Event detector: analyzes signal history and current scores to detect `engagement_declining`, `sentiment_shift_negative`, `user_rushing`, `high_trust_moment`, `sentiment_recovery`. |
+| **suggestSignalActions** | Action suggester: maps detected events to suggested actions (`slow_down_pacing`, `offer_clarification`, `skip_optional_questions`, `increase_empathy`). |
+| **extractEngagementFeatures** | Feature extractor: regex-based extraction of engagement signals (questions, elaboration, acknowledgements). Uses `SignalContext` for question-aware scoring. |
+| **extractSentimentFeatures** | Feature extractor: lexicon-based valence + negation, intensifiers, pivots, future orientation. |
 | **extractTrustFeatures** | Feature extractor: regex-based extraction of trust signals (collaborative pronouns, vulnerability language, specificity). |
+| **extractIntentFeatures** | Feature extractor: regex-based extraction of intent signals (cooperation, rushing, deflection, challenge, confusion). |
 
 ### 14.7 Routing Engine
 
@@ -1071,13 +1082,18 @@ The declarative routing system that evaluates YAML-defined rules against graph s
 
 | Name | Type | Location | Description & Arguments |
 |------|------|----------|------------------------|
-| runSignalOrchestrator | Tool | `core/agents/signal-orchestrator.ts` | Runs all 3 signal agents in parallel with TTL, aggregates via EMA. **Args:** `(userText: string, state: CfsState, config: { enabled: boolean, ttlMs: number }, nodeSignalAgents?: boolean) → Promise<SignalOrchestratorResult \| null>` |
-| runEngagementAgent | Tool | `core/agents/engagement-agent.ts` | Heuristic engagement scoring (follow-up, elaboration, back-channel, continuity). **Args:** `(text: string) → Promise<SignalAgentResult>` |
-| runSentimentAgent | Tool | `core/agents/sentiment-agent.ts` | Heuristic sentiment scoring (valence, intensifiers, pivots, future orientation). **Args:** `(text: string) → Promise<SignalAgentResult>` |
-| runTrustAgent | Tool | `core/agents/trust-agent.ts` | Heuristic trust scoring (pronouns, vulnerability, specificity, consistency). **Args:** `(text: string) → Promise<SignalAgentResult>` |
-| extractEngagementFeatures | Tool | `core/agents/extractors.ts` | Regex-based extraction of engagement signals from text. **Args:** `(text: string) → EngagementFeatures` |
-| extractSentimentFeatures | Tool | `core/agents/extractors.ts` | Regex-based extraction of sentiment signals from text. **Args:** `(text: string) → SentimentFeatures` |
-| extractTrustFeatures | Tool | `core/agents/extractors.ts` | Regex-based extraction of trust signals from text. **Args:** `(text: string) → TrustFeatures` |
+| runSignalOrchestrator | Tool | `core/agents/signal-orchestrator.ts` | Runs four heuristic agents (engagement, sentiment, trust, intent) in parallel with optional LLM assessment, TTL, aggregates via EMA with dynamic confidence, detects events, suggests actions. **Args:** `(userText: string, state: CfsState, config: { enabled: boolean, ttlMs: number, llmEnabled?: boolean }, nodeSignalAgents?: boolean) → Promise<SignalOrchestratorResult \| null>` |
+| runEngagementAgent | Tool | `core/agents/engagement-agent.ts` | Heuristic engagement scoring (follow-up, elaboration, back-channel, continuity). **Args:** `(ctx: SignalContext) → Promise<SignalAgentResult>` |
+| runSentimentAgent | Tool | `core/agents/sentiment-agent.ts` | Heuristic sentiment scoring (valence, intensifiers, pivots, future orientation). **Args:** `(ctx: SignalContext) → Promise<SignalAgentResult>` |
+| runTrustAgent | Tool | `core/agents/trust-agent.ts` | Heuristic trust scoring (pronouns, vulnerability, specificity, consistency). **Args:** `(ctx: SignalContext) → Promise<SignalAgentResult>` |
+| runIntentAgent | Tool | `core/agents/intent-agent.ts` | Heuristic intent scoring (cooperation, rushing, deflection, challenge, confusion). **Args:** `(ctx: SignalContext) → Promise<SignalAgentResult>` |
+| runLlmSignalAgent | Tool | `core/agents/llm-signal-agent.ts` | LLM assessment for all four dimensions via `signalAssessment` model. **Args:** `(ctx: SignalContext) → Promise<SignalAgentResult[] \| null>` |
+| detectSignalEvents | Tool | `core/agents/signal-events.ts` | Detects events from signal history and current scores. **Args:** `(history: SignalTurnRecord[], current: CurrentScores) → SignalEvent[]` |
+| suggestSignalActions | Tool | `core/agents/signal-events.ts` | Maps events to suggested actions. **Args:** `(events: SignalEvent[]) → SignalAction[]` |
+| extractEngagementFeatures | Tool | `core/agents/extractors.ts` | Regex-based extraction of engagement signals. **Args:** `(ctx: SignalContext \| string) → EngagementFeatures` |
+| extractSentimentFeatures | Tool | `core/agents/extractors.ts` | Lexicon-based valence + regex extraction of sentiment signals. **Args:** `(ctx: SignalContext \| string) → SentimentFeatures` |
+| extractTrustFeatures | Tool | `core/agents/extractors.ts` | Regex-based extraction of trust signals. **Args:** `(ctx: SignalContext \| string) → TrustFeatures` |
+| extractIntentFeatures | Tool | `core/agents/extractors.ts` | Regex-based extraction of intent signals. **Args:** `(ctx: SignalContext \| string) → IntentFeatures` |
 
 ### A.5 Routing Engine
 

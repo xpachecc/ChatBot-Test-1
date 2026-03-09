@@ -76,7 +76,7 @@ Each node has:
 | reads      | string[] | no       | State paths this node reads (documentation/validation). |
 | writes     | string[] | no       | State paths this node writes.                           |
 | description| string   | no       | What this node does.                                    |
-| signalAgents | boolean | no       | Per-node override for signal agents (ingest/compute). Schema supports it; runtime currently applies only global `config.signalAgents`. Omit = default true. |
+| signalAgents | boolean | no       | Per-node override for signal agents (ingest/compute). When true, the orchestrator runs for turns that reach this node. Global `config.signalAgents.enabled` and `llmEnabled` control whether agents run and whether LLM assessment is used. Omit = default true. |
 
 > \* At least one of `handlerRef` or `nodeConfig` is required. If both are present, `handlerRef` takes precedence and a warning is logged.
 
@@ -208,7 +208,7 @@ from `runtimeConfigRefs` to produce the `GraphMessagingConfig` singleton.
 | `clarificationAcknowledgement` | `string \| string[]`      | Acknowledgement phrases used before clarification replies. |
 | `readoutVoice`              | `{ rolePerspective, voiceCharacteristics, behavioralIntent }` | Readout tone/voice settings. |
 | `delivery`                  | `{ outputTargets, defaultOutputTargets, allowMultiTarget, overridesByTenant }` | Output delivery configuration. |
-| `signalAgents`              | `{ enabled: boolean, ttlMs: number }` | Global signal agent config. When enabled, runs engagement/sentiment/trust agents on user input. ttlMs (min 100) caps execution time. |
+| `signalAgents`              | `{ enabled: boolean, ttlMs: number, llmEnabled?: boolean }` | Global signal agent config. When enabled, runs engagement/sentiment/trust/intent agents on user input. ttlMs (min 100) caps execution time. llmEnabled (default false) runs optional LLM assessment via `signalAssessment` model; when true, LLM results are preferred over heuristics when available. |
 
 **Example:**
 

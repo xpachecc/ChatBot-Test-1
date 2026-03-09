@@ -16,20 +16,24 @@ beforeEach(() => {
 });
 
 describe("runTurn signal agent wiring", () => {
-  it("updates relationship_context when signalAgents enabled", async () => {
+  it("merges signal into relationship_context on turn N+1 (deferred merge)", async () => {
     registerCfsHandlers();
     const graphApp = loadAndCompileGraph(CFS_YAML);
     const state = createInitialState({ sessionId: "sig-int-1" });
 
-    const result = await runTurn(graphApp, state, "We love this! Very helpful.");
+    const turn1 = await runTurn(graphApp, state, "We love this! Very helpful.");
+    const turn2 = await runTurn(graphApp, turn1, "Tell me more about that.");
 
-    expect(result.relationship_context).toBeDefined();
-    expect(typeof result.relationship_context.engagement_score).toBe("number");
-    expect(typeof result.relationship_context.sentiment_score).toBe("number");
-    expect(typeof result.relationship_context.trust_score).toBe("number");
-    expect(typeof result.relationship_context.overall_conversation_score).toBe("number");
-    expect(typeof result.relationship_context.turn_count).toBe("number");
-    expect(Array.isArray(result.relationship_context.signal_history)).toBe(true);
+    expect(turn2.relationship_context).toBeDefined();
+    expect(typeof turn2.relationship_context.engagement_score).toBe("number");
+    expect(typeof turn2.relationship_context.sentiment_score).toBe("number");
+    expect(typeof turn2.relationship_context.trust_score).toBe("number");
+    expect(typeof turn2.relationship_context.intent_score).toBe("number");
+    expect(typeof turn2.relationship_context.overall_conversation_score).toBe("number");
+    expect(typeof turn2.relationship_context.turn_count).toBe("number");
+    expect(Array.isArray(turn2.relationship_context.signal_history)).toBe(true);
+    expect(turn2.relationship_context.engagement_score).toBeGreaterThanOrEqual(0);
+    expect(turn2.relationship_context.engagement_score).toBeLessThanOrEqual(1);
   });
 });
 
@@ -51,6 +55,7 @@ describe("legacy key removal", () => {
     expect("engagement_score" in rc).toBe(true);
     expect("sentiment_score" in rc).toBe(true);
     expect("trust_score" in rc).toBe(true);
+    expect("intent_score" in rc).toBe(true);
     expect("overall_conversation_score" in rc).toBe(true);
     expect("turn_count" in rc).toBe(true);
     expect("signal_history" in rc).toBe(true);

@@ -2,6 +2,7 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { CfsStateSchema, type CfsState, type GraphMessagingConfig, type MessageType } from "./state.js";
 import { createInitialState, requireGraphMessagingConfig, prependClarificationAcknowledgement } from "./infra.js";
 import { runSignalOrchestrator } from "./core/agents/index.js";
+import { getPendingSignal, setPendingSignal } from "./core/agents/signal-store.js";
 import { reviewResponseWithAI } from "./core/guards/review.js";
 import { registerHandlersForGraph } from "./schema/graph-handler-modules.js";
 import { loadGraphDsl } from "./schema/graph-loader.js";
@@ -51,21 +52,21 @@ export async function runTurn(graphApp: CompiledGraph, state: CfsState, userText
   let config: GraphMessagingConfig | null = null;
   try { config = requireGraphMessagingConfig(); } catch { /* not set yet */ }
   const signalConfig = config?.signalAgents;
-  const orchestratorPromise =
-    signalConfig?.enabled && userText?.trim()
-      ? runSignalOrchestrator(userText, nextState, signalConfig).catch(() => null)
-      : Promise.resolve(null);
+  const sessionId = nextState.session_context.session_id;
 
-  const result = await graphApp.compiled.invoke(nextState);
-  const parsed = CfsStateSchema.parse(result);
+  const pendingSignal = getPendingSignal(sessionId);
+  const stateWithPriorSignals = pendingSignal
+    ? CfsStateSchema.parse({ ...nextState, relationship_context: { ...nextState.relationship_context, ...pendingSignal } })
+    : nextState;
 
-  const signals = await Promise.race([
-    orchestratorPromise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 50)),
-  ]);
-  const finalParsed = signals
-    ? CfsStateSchema.parse({ ...parsed, relationship_context: { ...parsed.relationship_context, ...signals } })
-    : parsed;
+  if (signalConfig?.enabled && userText?.trim()) {
+    runSignalOrchestrator(userText, stateWithPriorSignals, signalConfig)
+      .then((result) => { if (result) setPendingSignal(sessionId, result); })
+      .catch(() => { /* no-op; next turn proceeds without this signal */ });
+  }
+
+  const result = await graphApp.compiled.invoke(stateWithPriorSignals);
+  const finalParsed = CfsStateSchema.parse(result);
 
   const lastNewIdx = findLastAIIndex(finalParsed.messages, inputLen);
   if (lastNewIdx < 0) return finalParsed;

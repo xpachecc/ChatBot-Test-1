@@ -25,22 +25,26 @@ nodes:
     kind: router
     handlerRef: "cfs.routeInitFlow"
     intent: "Route the conversation to the next appropriate step based on session state"
+    signalAgents: false
 
   - id: routePillarsLoop
     kind: router
     handlerRef: "cfs.routePillarsLoop"
     intent: "Control the pillar analysis loop and gate readout generation"
+    signalAgents: false
 
   - id: routeAfterIngestUseCaseSelection
     kind: router
     handlerRef: "cfs.routeAfterIngestUseCaseSelection"
     intent: "Route after use case selection — proceed to questions if valid, retry otherwise"
+    signalAgents: false
 
   # Step 1: Know Your Customer
   - id: sendIntroAndAskUseCaseGroup
     kind: question
     writes: [messages, session_context, use_case_context]
     description: "Send introduction and ask for use case group."
+    signalAgents: false
     nodeConfig:
       greeting:
         stringKeys: ["step1.greet", "step1.followup"]
@@ -54,6 +58,7 @@ nodes:
   - id: askUserName
     kind: question
     description: "Ask user for their name."
+    signalAgents: false
     nodeConfig:
       question:
         stringKey: "step1.nameQuestion"
@@ -68,6 +73,7 @@ nodes:
   - id: askIndustry
     kind: question
     description: "Ask user for their industry."
+    signalAgents: false
     nodeConfig:
       question:
         stringKeys: ["step1.industryIntro", "step1.industryBody", "step1.industryPrompt"]
@@ -80,6 +86,7 @@ nodes:
   - id: askRole
     kind: question
     description: "Ask user for their role."
+    signalAgents: false
     nodeConfig:
       question:
         stringKey: "step1.roleQuestion"
@@ -100,6 +107,7 @@ nodes:
   - id: askTimeframe
     kind: question
     description: "Ask user for their timeframe."
+    signalAgents: false
     nodeConfig:
       question:
         stringKey: "step1.timeframeQuestion"
@@ -126,6 +134,7 @@ nodes:
     handlerRef: "step1.nodeInternetSearch"
     intent: "Search the internet for industry context to improve conversation relevance"
     writes: [internet_search_context, session_context]
+    signalAgents: false
 
   - id: ingestUseCaseGroupSelection
     kind: ingest
@@ -133,11 +142,13 @@ nodes:
     intent: "Process the user's use case group selection and resolve persona"
     reads: [messages, session_context]
     writes: [use_case_context, session_context]
+    signalAgents: false
 
   - id: ingestConfirmStart
     kind: ingest
     reads: [messages, session_context]
     writes: [messages, session_context]
+    signalAgents: false
     nodeConfig:
       ingest:
         affirmativeCheckConfig:
@@ -155,21 +166,25 @@ nodes:
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
     intent: "Process the user's industry input, clarify if vague, and resolve market segment"
+    signalAgents: false
 
   - id: ingestRole
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
     intent: "Process the user's role input and resolve persona group"
+    signalAgents: true
 
   - id: ingestConfirmRole
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
     intent: "Process the user's role confirmation response"
+    signalAgents: false
 
   - id: ingestKycConfirm
     kind: ingest
     reads: [messages, session_context]
     writes: [messages, session_context]
+    signalAgents: false
     nodeConfig:
       ingest:
         affirmativeCheckConfig:
@@ -196,6 +211,7 @@ nodes:
     intent: "Use AI to determine and present relevant use cases based on the user's profile"
     reads: [user_context, use_case_context, vector_context]
     writes: [use_case_context, messages, session_context]
+    signalAgents: false
 
   - id: ingestUseCaseSelection
     kind: ingest
@@ -203,6 +219,7 @@ nodes:
     intent: "Process the user's use case selection and validate choices"
     reads: [messages, session_context]
     writes: [use_case_context, session_context]
+    signalAgents: false
 
   - id: nodeDetermineUseCaseQuestions
     kind: compute
@@ -210,6 +227,7 @@ nodes:
     intent: "Use AI to generate discovery questions tailored to the selected use cases"
     reads: [user_context, use_case_context, vector_context]
     writes: [use_case_context, session_context]
+    signalAgents: false
 
   # Step 3: Perform Discovery
   - id: nodeAskUseCaseQuestions
@@ -218,6 +236,7 @@ nodes:
     intent: "Present discovery questions to the user one at a time and collect answers"
     reads: [use_case_context, session_context]
     writes: [messages, session_context, use_case_context]
+    signalAgents: true
 
   - id: nodeDeterminePillars
     kind: compute
@@ -225,6 +244,7 @@ nodes:
     intent: "Use AI to identify and prioritize solution pillars based on discovery answers"
     reads: [use_case_context, user_context]
     writes: [use_case_context, session_context]
+    signalAgents: false
 
   # Step 4: Build Readout
   - id: nodeBuildReadout
@@ -233,6 +253,7 @@ nodes:
     intent: "Generate the final readout document with personalized recommendations"
     reads: [user_context, use_case_context, vector_context, readout_context]
     writes: [readout_context, session_context]
+    signalAgents: false
 
   # Step 5: Readout Summary and Next Steps
   - id: nodeDisplayReadout
@@ -240,6 +261,7 @@ nodes:
     reads: [readout_context, session_context]
     writes: [messages]
     description: "Display readout document and download option."
+    signalAgents: false
     nodeConfig:
       display:
         statePath: "readout_context.rendered_outputs.markdown"
@@ -427,10 +449,6 @@ config:
       model: "gpt-3.5-turbo"
       temperature: 0.4
       maxRetries: 1
-    readout:
-      model: "gpt-4o"
-      temperature: 0.4
-      maxRetries: 1
     sanitizer:
       model: "gpt-3.5-turbo"
       temperature: 0
@@ -438,6 +456,14 @@ config:
     riskAssessment:
       model: "gpt-4o"
       temperature: 0.8
+      maxRetries: 1
+    readout:
+      model: "gpt-4o"
+      temperature: 0.4
+      maxRetries: 1
+    signalAssessment:
+      model: "gpt-3.5-turbo"
+      temperature: 0.2
       maxRetries: 1
 
   messagePolicy:
@@ -492,3 +518,4 @@ config:
   signalAgents:
     enabled: true
     ttlMs: 1000
+    llmEnabled: true

@@ -51,6 +51,15 @@ describe("modelFactory", () => {
     clearModelCache();
   });
 
+  it("getModel returns signalAssessment instance", async () => {
+    const { getModel, clearModelCache } = await import("../core/config/model-factory.js");
+    clearModelCache();
+    process.env.OPENAI_API_KEY = "test-key";
+    const model = getModel("signalAssessment");
+    expect(model).toBeDefined();
+    expect(typeof model.invoke).toBe("function");
+  });
+
   it("getModel throws when OPENAI_API_KEY is missing", async () => {
     delete process.env.OPENAI_API_KEY;
     const { getModel, clearModelCache } = await import("../core/config/model-factory.js");

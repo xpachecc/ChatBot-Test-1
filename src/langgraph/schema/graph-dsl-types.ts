@@ -69,6 +69,7 @@ export const ProgressRulesSchema = z.object({
 export const SignalAgentConfigSchema = z.object({
   enabled: z.boolean().default(false),
   ttlMs: z.number().int().min(100).default(1000),
+  llmEnabled: z.boolean().default(false),
 });
 
 export const GraphConfigSchema = z.object({

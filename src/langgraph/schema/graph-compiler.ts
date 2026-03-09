@@ -724,7 +724,7 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
   const continuationTriggers = cfg.continuationTriggers?.length ? cfg.continuationTriggers : undefined;
   const ingestFieldMappings = cfg.ingestFieldMappings && Object.keys(cfg.ingestFieldMappings).length > 0 ? cfg.ingestFieldMappings : undefined;
   const signalAgents = cfg.signalAgents
-    ? { enabled: cfg.signalAgents.enabled, ttlMs: cfg.signalAgents.ttlMs }
+    ? { enabled: cfg.signalAgents.enabled, ttlMs: cfg.signalAgents.ttlMs, llmEnabled: cfg.signalAgents.llmEnabled ?? false }
     : undefined;
 
   return {
