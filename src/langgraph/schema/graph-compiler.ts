@@ -538,11 +538,14 @@ export function preflightRoutingValidation(dsl: GraphDsl): PreflightWarning[] {
     }
   }
 
-  // 6. State extensions — warn on undeclared state fields in reads/writes
+  // 6. State extensions — warn on undeclared state fields in reads/writes (skip nodes with empty arrays)
   const declaredExtensions = new Set(dsl.graph.stateExtensions ?? []);
   const allowedFields = new Set([...BASE_STATE_FIELDS, ...declaredExtensions]);
   for (const node of dsl.nodes) {
-    for (const field of [...(node.reads ?? []), ...(node.writes ?? [])]) {
+    const reads = node.reads ?? [];
+    const writes = node.writes ?? [];
+    if (reads.length === 0 && writes.length === 0) continue;
+    for (const field of [...reads, ...writes]) {
       const topLevel = field.split(".")[0];
       if (!allowedFields.has(topLevel)) {
         warnings.push({
@@ -667,8 +670,17 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
   const meta = cfg.meta?.steps?.length
     ? { flowTitle: cfg.meta.flowTitle, flowDescription: cfg.meta.flowDescription, steps: cfg.meta.steps }
     : undefined;
-  const progressRules = cfg.progressRules?.questionKeyMap && Object.keys(cfg.progressRules.questionKeyMap).length > 0
-    ? cfg.progressRules
+  const baseProgressRules = cfg.progressRules ?? {};
+  const mergedQuestionKeyMap: Record<string, number> = { ...(baseProgressRules.questionKeyMap ?? {}) };
+  for (const step of cfg.meta?.steps ?? []) {
+    if (step.countingStrategy === "questionKeyMap" && step.questionKeyMap && Object.keys(step.questionKeyMap).length > 0) {
+      Object.assign(mergedQuestionKeyMap, step.questionKeyMap);
+    }
+  }
+  const hasQuestionKeyMap = Object.keys(mergedQuestionKeyMap).length > 0;
+  const hasOtherProgressRules = !!(baseProgressRules.dynamicCountField || baseProgressRules.dynamicCountStepKey || baseProgressRules.useCaseSelectQuestionKey);
+  const progressRules = hasQuestionKeyMap || hasOtherProgressRules
+    ? { ...baseProgressRules, questionKeyMap: mergedQuestionKeyMap }
     : undefined;
   const questionTemplates = cfg.questionTemplates?.length ? cfg.questionTemplates : undefined;
   const options = cfg.options && Object.keys(cfg.options).length > 0 ? cfg.options : undefined;
@@ -715,9 +727,12 @@ export function buildGraphMessagingConfigFromDsl(dsl: GraphDsl): GraphMessagingC
  */
 export function compileGraphFromDsl(inputDsl: GraphDsl): CompiledGraph {
   let dsl = expandAutoIngest(inputDsl);
-  dsl = expandAwaitingDispatch(dsl);
-  dsl = expandDestinations(dsl);
-  dsl = expandDefaultTransitions(dsl);
+  const schemaVersion = inputDsl.schemaVersion;
+  if (schemaVersion >= 2) {
+    dsl = expandAwaitingDispatch(dsl);
+    dsl = expandDestinations(dsl);
+    dsl = expandDefaultTransitions(dsl);
+  }
   preflight(dsl);
 
   const graphId = dsl.graph.graphId;

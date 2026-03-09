@@ -4,6 +4,7 @@ import type { GraphDsl } from "../schema/graph-dsl-types.js";
 function makeDsl(overrides: Record<string, any>): GraphDsl {
   const graph = { tags: [] as string[], stateExtensions: [] as string[], ...overrides.graph };
   return {
+    schemaVersion: 2,
     stateContractRef: "state.CfsStateSchema",
     runtimeConfigRefs: {},
     config: {

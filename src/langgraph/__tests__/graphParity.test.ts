@@ -44,6 +44,7 @@ stateContractRef: "state.CfsStateSchema"
 
   it("rejects YAML with unknown node kind", () => {
     const bad = `
+schemaVersion: 2
 graph:
   graphId: test
   version: "1.0"
@@ -60,12 +61,29 @@ transitions: {}
 
   it("rejects empty node list", () => {
     const bad = `
+schemaVersion: 2
 graph:
   graphId: test
   version: "1.0"
   entrypoint: a
 stateContractRef: "state.CfsStateSchema"
 nodes: []
+transitions: {}
+`;
+    expect(() => parseGraphDslFromText(bad)).toThrow();
+  });
+
+  it("rejects YAML missing schemaVersion", () => {
+    const bad = `
+graph:
+  graphId: test
+  version: "1.0"
+  entrypoint: a
+stateContractRef: "state.CfsStateSchema"
+nodes:
+  - id: a
+    kind: router
+    handlerRef: "x"
 transitions: {}
 `;
     expect(() => parseGraphDslFromText(bad)).toThrow();
@@ -347,6 +365,7 @@ describe("multi-flow handler architecture", () => {
     });
 
     const testYaml = `
+schemaVersion: 2
 graph:
   graphId: testFlow
   version: "1.0"

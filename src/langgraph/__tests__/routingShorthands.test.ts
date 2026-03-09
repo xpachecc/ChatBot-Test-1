@@ -15,6 +15,7 @@ const CFS_YAML = resolve(__dirname, "../../../clients/default/flows/cfs-default/
 
 const minimalDsl = (overrides: Partial<GraphDsl> = {}): GraphDsl =>
   ({
+    schemaVersion: 2,
     graph: { graphId: "test", version: "1", entrypoint: "router" },
     stateContractRef: "state.CfsStateSchema",
     nodes: [

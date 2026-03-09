@@ -29,6 +29,7 @@ describe("resolveFileRefs ($file with #fragment)", () => {
     writeFileSync(
       flowPath,
       `
+schemaVersion: 2
 graph: { graphId: test, version: "1.0", entrypoint: a }
 stateContractRef: "state.CfsStateSchema"
 nodes:
@@ -66,6 +67,7 @@ strings:
     writeFileSync(
       flowPath,
       `
+schemaVersion: 2
 graph: { graphId: test, version: "1.0", entrypoint: a }
 stateContractRef: "state.CfsStateSchema"
 nodes:
@@ -95,6 +97,7 @@ config:
     writeFileSync(
       flowPath,
       `
+schemaVersion: 2
 graph: { graphId: test, version: "1.0", entrypoint: a }
 stateContractRef: "state.CfsStateSchema"
 nodes:
@@ -121,6 +124,7 @@ config:
     writeFileSync(
       flowPath,
       `
+schemaVersion: 2
 graph: { graphId: test, version: "1.0", entrypoint: a }
 stateContractRef: "state.CfsStateSchema"
 nodes:
@@ -151,6 +155,7 @@ config:
     writeFileSync(
       flowPath,
       `
+schemaVersion: 2
 graph: { graphId: test, version: "1.0", entrypoint: a }
 stateContractRef: "state.CfsStateSchema"
 nodes:

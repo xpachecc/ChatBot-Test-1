@@ -50,6 +50,7 @@ export const FlowStepMetaSchema = z.object({
   countable: z.boolean().default(false),
   totalQuestions: z.number().int().min(0).default(0),
   countingStrategy: CountingStrategySchema.optional(),
+  questionKeyMap: z.record(z.string(), z.number()).optional(),
 });
 
 export const FlowMetaSchema = z.object({
@@ -279,6 +280,7 @@ export const ValidationSchema = z.object({
 });
 
 export const GraphDslSchema = z.object({
+  schemaVersion: z.number().int().min(1),
   graph: z.object({
     graphId: z.string().min(1),
     version: z.string().min(1),

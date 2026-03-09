@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────
-# Flow YAML Template — GraphDSL v1
+# Flow YAML Template — GraphDSL v2
 # ──────────────────────────────────────────────────────────────────────
 # Reverse-engineered from clients/default/flows/cfs-default/flow.yaml.
 # Copy to clients/<tenantId>/flows/<flowId>/flow.yaml and customize.
@@ -10,6 +10,8 @@
 # Reference: docs/graph-authoring.md
 # Schema: src/langgraph/schema/graph-dsl-types.ts
 # ──────────────────────────────────────────────────────────────────────
+
+schemaVersion: 2
 
 # ── Graph metadata (required) ────────────────────────────────────────
 graph:

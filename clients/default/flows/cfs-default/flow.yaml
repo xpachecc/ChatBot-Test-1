@@ -1,10 +1,12 @@
 # ──────────────────────────────────────────────────────────────────────
-# CFS (Customer-Facing Sales) Conversation Flow — GraphDSL v1
+# CFS (Customer-Facing Sales) Conversation Flow — GraphDSL v2
 # ──────────────────────────────────────────────────────────────────────
 # This file fully describes the graph topology for the CFS chatbot.
 # Runtime infrastructure (state validation, runTurn lifecycle, AI/vector
 # tooling) is shared and NOT redefined here.
 # ──────────────────────────────────────────────────────────────────────
+
+schemaVersion: 2
 
 graph:
   graphId: cfs
@@ -69,7 +71,6 @@ nodes:
 
   - id: askIndustry
     kind: question
-    writes: [messages, session_context]
     description: "Ask user for their industry."
     nodeConfig:
       question:
@@ -82,7 +83,6 @@ nodes:
 
   - id: askRole
     kind: question
-    writes: [messages, session_context]
     description: "Ask user for their role."
     nodeConfig:
       question:
@@ -160,22 +160,16 @@ nodes:
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
     intent: "Process the user's industry input, clarify if vague, and resolve market segment"
-    reads: [messages, session_context]
-    writes: [user_context, session_context]
 
   - id: ingestRole
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
     intent: "Process the user's role input and resolve persona group"
-    reads: [messages, session_context]
-    writes: [user_context, session_context]
 
   - id: ingestConfirmRole
     kind: ingest
     handlerRef: "step1.nodeStep1Ingest"
     intent: "Process the user's role confirmation response"
-    reads: [messages, session_context]
-    writes: [user_context, session_context]
 
   - id: ingestKycConfirm
     kind: ingest
@@ -296,6 +290,16 @@ config:
         countable: true
         totalQuestions: 6
         countingStrategy: questionKeyMap
+        questionKeyMap:
+          S1_USE_CASE_GROUP: 0
+          CONFIRM_START: 1
+          S1_NAME: 1
+          S1_INDUSTRY: 2
+          S1_INTERNET_SEARCH: 2
+          S1_ROLE: 3
+          CONFIRM_ROLE: 4
+          S1_TIMEFRAME: 4
+          S1_KYC_CONFIRM: 5
       - key: STEP2_NARROW_DOWN_USE_CASES
         label: "Narrow Down Use Cases"
         order: 2
@@ -331,16 +335,6 @@ config:
   exampleTemplates: { $file: "./flow-content.yaml#exampleTemplates" }
 
   progressRules:
-    questionKeyMap:
-      S1_USE_CASE_GROUP: 0
-      CONFIRM_START: 1
-      S1_NAME: 1
-      S1_INDUSTRY: 2
-      S1_INTERNET_SEARCH: 2
-      S1_ROLE: 3
-      CONFIRM_ROLE: 4
-      S1_TIMEFRAME: 4
-      S1_KYC_CONFIRM: 5
     dynamicCountField: "use_case_context.discovery_questions"
     dynamicCountStepKey: "STEP3_PERFORM_DISCOVERY"
 
