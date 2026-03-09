@@ -5,10 +5,9 @@ function makeDsl(overrides: Record<string, any>): GraphDsl {
   const graph = { tags: [] as string[], stateExtensions: [] as string[], ...overrides.graph };
   return {
     stateContractRef: "state.CfsStateSchema",
-    routingKeys: [],
     runtimeConfigRefs: {},
     config: {
-      steps: [], models: {}, messagePolicy: {}, aiPrompts: {}, strings: {},
+      models: {}, messagePolicy: {}, aiPrompts: {}, strings: {},
       questionTemplates: [], clarifierRetryText: {}, clarificationAcknowledgement: [],
       readoutVoice: { rolePerspective: "Coach_Affirmative", voiceCharacteristics: "", behavioralIntent: "" },
       readout: { sectionKeys: [], sectionContract: "" },

@@ -2,11 +2,6 @@ import * as z from "zod";
 
 // ── Config sub-schemas (per-graph conversation settings) ────────────
 
-export const StepDefSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-});
-
 export const ModelConfigSchema = z.object({
   model: z.string().min(1),
   temperature: z.number().min(0).max(2).default(0.4),
@@ -76,7 +71,6 @@ export const SignalAgentConfigSchema = z.object({
 });
 
 export const GraphConfigSchema = z.object({
-  steps: z.array(StepDefSchema).default([]),
   models: z.record(z.string(), ModelConfigSchema).default({}),
   messagePolicy: z.record(z.string(), MessagePolicyEntrySchema).default({}),
   aiPrompts: z.record(z.string(), z.string()).default({}),
@@ -311,7 +305,6 @@ export type NodeKind = z.infer<typeof NodeKindSchema>;
 export type StaticTransition = z.infer<typeof StaticTransitionSchema>;
 export type ConditionalTransition = z.infer<typeof ConditionalTransitionSchema>;
 export type RuntimeConfigRefs = z.infer<typeof RuntimeConfigRefsSchema>;
-export type StepDef = z.infer<typeof StepDefSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type QuestionTemplate = z.infer<typeof QuestionTemplateSchema>;
 export type FlowStepMeta = z.infer<typeof FlowStepMetaSchema>;

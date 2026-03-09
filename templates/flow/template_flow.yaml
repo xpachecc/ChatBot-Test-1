@@ -179,20 +179,8 @@ transitions:
     - { from: askFirstQuestion, to: "__end__" }
     - { from: ingestFirstAnswer, to: "__end__" }
 
-# ── Routing keys (optional) ───────────────────────────────────────────
-routingKeys:
-  - session_context.step
-  - session_context.last_question_key
-  - session_context.awaiting_user
-  - session_context.started
-  - session_context.primitive_counter
-  - session_context.reason_trace
-  - messages
-
 # ── Runtime config references (optional) ──────────────────────────────
 runtimeConfigRefs:
-  modelAliases:
-    default: "gpt-3.5-turbo"
   messagePolicyRef: "myFlow.messagePolicy"
   promptSetRef: "myFlow.aiPrompts"
 
@@ -261,10 +249,6 @@ config:
 # state_path_empty, state_path_not_empty, state_path_equals, state_path_not_equals,
 # state_path_length_gt, state_path_length_lt, last_answer_equals, last_question_key,
 # trace_includes, trace_not_includes, step_equals
-
-  steps:
-    - id: STEP1
-      label: "step1-My_Step"
 
   models:
     default:
@@ -337,6 +321,3 @@ config:
 validation:
   requiredStateFields:
     - session_context.session_id
-  invariants:
-    - "All node handlerRefs must resolve in the handler registry"
-    - "All routerRefs must resolve in the router registry"

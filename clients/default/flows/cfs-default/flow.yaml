@@ -27,19 +27,16 @@ nodes:
     kind: router
     handlerRef: "cfs.routeInitFlow"
     intent: "Route the conversation to the next appropriate step based on session state"
-    description: "Central router — dispatches based on session state."
 
   - id: routePillarsLoop
     kind: router
     handlerRef: "cfs.routePillarsLoop"
     intent: "Control the pillar analysis loop and gate readout generation"
-    description: "Pillar loop router — gates readout generation."
 
   - id: routeAfterIngestUseCaseSelection
     kind: router
     handlerRef: "cfs.routeAfterIngestUseCaseSelection"
     intent: "Route after use case selection — proceed to questions if valid, retry otherwise"
-    description: "After use case selection ingest — proceed if valid, else end (retry)."
 
   # Step 1: Know Your Customer
   - id: sendIntroAndAskUseCaseGroup
@@ -133,7 +130,6 @@ nodes:
     handlerRef: "step1.nodeInternetSearch"
     intent: "Search the internet for industry context to improve conversation relevance"
     writes: [internet_search_context, session_context]
-    description: "Internet search for industry context via Firecrawl."
 
   - id: ingestUseCaseGroupSelection
     kind: ingest
@@ -203,7 +199,6 @@ nodes:
     intent: "Echo back the collected customer information for confirmation before proceeding"
     reads: [user_context, use_case_context, vector_context]
     writes: [messages, session_context]
-    description: "Echo KYC summary for user confirmation."
     signalAgents: true
 
   # Step 2: Narrow Down Use Cases
@@ -213,7 +208,6 @@ nodes:
     intent: "Use AI to determine and present relevant use cases based on the user's profile"
     reads: [user_context, use_case_context, vector_context]
     writes: [use_case_context, messages, session_context]
-    description: "AI-driven use case determination and presentation."
 
   - id: ingestUseCaseSelection
     kind: ingest
@@ -228,7 +222,6 @@ nodes:
     intent: "Use AI to generate discovery questions tailored to the selected use cases"
     reads: [user_context, use_case_context, vector_context]
     writes: [use_case_context, session_context]
-    description: "Generate discovery questions based on selected use cases."
 
   # Step 3: Perform Discovery
   - id: nodeAskUseCaseQuestions
@@ -237,7 +230,6 @@ nodes:
     intent: "Present discovery questions to the user one at a time and collect answers"
     reads: [use_case_context, session_context]
     writes: [messages, session_context, use_case_context]
-    description: "Present discovery questions in loop."
 
   - id: nodeDeterminePillars
     kind: compute
@@ -245,7 +237,6 @@ nodes:
     intent: "Use AI to identify and prioritize solution pillars based on discovery answers"
     reads: [use_case_context, user_context]
     writes: [use_case_context, session_context]
-    description: "AI pillar selection based on discovery answers."
 
   # Step 4: Build Readout
   - id: nodeBuildReadout
@@ -254,7 +245,6 @@ nodes:
     intent: "Generate the final readout document with personalized recommendations"
     reads: [user_context, use_case_context, vector_context, readout_context]
     writes: [readout_context, session_context]
-    description: "Build readout document (no display)."
 
   # Step 5: Readout Summary and Next Steps
   - id: nodeDisplayReadout
@@ -328,23 +318,8 @@ transitions:
     - { from: nodeBuildReadout,            to: nodeDisplayReadout }
     - { from: nodeDisplayReadout,           to: "__end__" }
 
-# ── Routing keys (state paths that drive routing decisions) ──────────
-routingKeys:
-  - session_context.step
-  - session_context.last_question_key
-  - session_context.awaiting_user
-  - session_context.started
-  - session_context.primitive_counter
-  - session_context.reason_trace
-  - readout_context.status
-  - messages
-
 # ── Runtime config references ────────────────────────────────────────
 runtimeConfigRefs:
-  modelAliases:
-    knowYourCustomer: "gpt-3.5-turbo"
-    useCaseQuestions: "gpt-3.5-turbo"
-    readout: "gpt-4o"
   messagePolicyRef: "cfs.messagePolicy"
   promptSetRef: "cfs.aiPrompts"
 
@@ -518,18 +493,6 @@ config:
       - when: { state_path_not_empty: "use_case_context.selected_use_cases" }
         goto: nodeDetermineUseCaseQuestions
       - default: end
-
-  steps:
-    - id: STEP1_KNOW_YOUR_CUSTOMER
-      label: "step1-Know_Your_Customer"
-    - id: STEP2_NARROW_DOWN_USE_CASES
-      label: "step2-Narrow_Down_Use_Cases"
-    - id: STEP3_PERFORM_DISCOVERY
-      label: "step3-Perform_Discovery"
-    - id: STEP4_BUILD_READOUT
-      label: "step4-Build_Readout"
-    - id: STEP5_READOUT_SUMMARY_NEXT_STEPS
-      label: "step5-Readout_Summary_Next_Steps"
 
   models:
     knowYourCustomer:
@@ -866,7 +829,3 @@ config:
 validation:
   requiredStateFields:
     - session_context.session_id
-  invariants:
-    - "session_context.step must be a valid CFS step enum value"
-    - "All node handlerRefs must resolve in the handler registry"
-    - "All routerRefs must resolve in the router registry"
