@@ -102,8 +102,8 @@ The compilation pipeline transforms YAML → validated DSL → runnable LangGrap
 
 ```
    ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────────┐
-   │  flow.yaml  │───▶│  YAML parse  │───▶│ resolveFile  │───▶│  Zod validate │───▶│  preflight() │
-   │  (on disk)  │    │  (yaml lib)  │    │  Refs ($file) │    │ (GraphDslSchema)   │ (registry    │
+   │  flow.yaml  │───▶│  YAML parse  │───▶│ resolveRefs   │───▶│  Zod validate │───▶│  preflight() │
+   │  (on disk)  │    │  (yaml lib)  │    │  ($ref)       │    │ (GraphDslSchema)   │ (registry    │
    └─────────────┘    └──────────────┘    └──────────────┘    └───────────────┘    │  checks)     │
                                                                                     └──────┬───────┘
                                                                        │
@@ -160,7 +160,7 @@ The compilation pipeline transforms YAML → validated DSL → runnable LangGrap
 
 | File | Role |
 |------|------|
-| `schema/graph-loader.ts` | `loadGraphDsl()` — YAML parse + resolveFileRefs ($file) + Zod validation |
+| `schema/graph-loader.ts` | `loadGraphDsl()` — YAML parse + resolveRefs ($ref) + Zod validation |
 | `schema/graph-compiler.ts` | `compileGraphFromDsl()`, expansions, `preflightRoutingValidation()` |
 | `schema/handler-registry.ts` | Global Maps for handlers, routers, configs |
 | `schema/graph-handler-modules.ts` | Per-graphId handler registration dispatch |
@@ -371,20 +371,20 @@ The `evaluateWhen()` function supports these built-in predicates and state path 
 
 The `config` block (GraphConfigSchema) holds all data a flow needs at runtime. It is compiled into a `GraphMessagingConfig` object and stored per-graphId.
 
-### $file References and flow-content.yaml
+### $ref References and flow-content.yaml
 
-Long-form content (aiPrompts, strings, questionTemplates, etc.) can be extracted to a sibling `flow-content.yaml` and referenced via `$file`:
+Long-form content (aiPrompts, strings, questionTemplates, etc.) can be extracted to a sibling `flow-content.yaml` and referenced via `$ref`:
 
 ```yaml
 config:
-  aiPrompts:        { $file: "./flow-content.yaml#aiPrompts" }
-  strings:          { $file: "./flow-content.yaml#strings" }
-  questionTemplates: { $file: "./flow-content.yaml#questionTemplates" }
+  aiPrompts:        { $ref: "./flow-content.yaml#aiPrompts" }
+  strings:          { $ref: "./flow-content.yaml#strings" }
+  questionTemplates: { $ref: "./flow-content.yaml#questionTemplates" }
 ```
 
-- `resolveFileRefs` runs before Zod validation (in `loadGraphDsl`).
-- `$file: "./path.yaml"` — replaces with full parsed file contents.
-- `$file: "./path.yaml#fragment"` — replaces with the top-level key named `fragment`.
+- `resolveRefs` runs before Zod validation (in `loadGraphDsl`).
+- `$ref: "./path.yaml"` — replaces with full parsed file contents.
+- `$ref: "./path.yaml#fragment"` — replaces with the top-level key named `fragment`.
 - Throws on missing file, missing fragment, or circular refs.
 
 ```

@@ -1,5 +1,5 @@
 # flow-content.yaml — content values for the flow schema
-# Referenced from flow.yaml via $file: "./flow-content.yaml#<section>"
+# Referenced from flow.yaml via $ref: "./flow-content.yaml#<section>"
 
 aiPrompts:
   selectPersonaGroup: >-

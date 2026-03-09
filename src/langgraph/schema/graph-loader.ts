@@ -8,26 +8,26 @@ import type { CompiledGraph } from "./graph-compiler.js";
 
 const MAX_FILE_REF_DEPTH = 5;
 
-function isFileRef(obj: unknown): obj is { $file: string } {
+function isRef(obj: unknown): obj is { $ref: string } {
   return (
     obj != null &&
     typeof obj === "object" &&
     Object.keys(obj as object).length === 1 &&
-    "$file" in (obj as object) &&
-    typeof (obj as { $file: unknown }).$file === "string"
+    "$ref" in (obj as object) &&
+    typeof (obj as { $ref: unknown }).$ref === "string"
   );
 }
 
 function resolveFileRef(ref: string, basePath: string, depth: number): unknown {
   if (depth > MAX_FILE_REF_DEPTH) {
-    throw new Error(`$file reference depth exceeded ${MAX_FILE_REF_DEPTH} (possible circular reference)`);
+    throw new Error(`$ref reference depth exceeded ${MAX_FILE_REF_DEPTH} (possible circular reference)`);
   }
 
   const [filePath, fragment] = ref.split("#").map((s) => s.trim());
   const resolvedPath = resolve(basePath, filePath);
 
   if (!existsSync(resolvedPath)) {
-    throw new Error(`$file reference targets non-existent file: ${resolvedPath} (from ${ref})`);
+    throw new Error(`$ref reference targets non-existent file: ${resolvedPath} (from ${ref})`);
   }
 
   const raw = readFileSync(resolvedPath, "utf-8");
@@ -35,7 +35,7 @@ function resolveFileRef(ref: string, basePath: string, depth: number): unknown {
 
   if (fragment) {
     if (!(fragment in parsed)) {
-      throw new Error(`$file fragment "#${fragment}" not found in ${resolvedPath}`);
+      throw new Error(`$ref fragment "#${fragment}" not found in ${resolvedPath}`);
     }
     return parsed[fragment];
   }
@@ -51,13 +51,13 @@ function resolveFileRefs(
 ): unknown {
   if (depth > MAX_FILE_REF_DEPTH) return obj;
 
-  if (isFileRef(obj)) {
-    const ref = obj.$file;
+  if (isRef(obj)) {
+    const ref = obj.$ref;
     const [filePath] = ref.split("#").map((s) => s.trim());
     const resolvedPath = resolve(basePath, filePath);
 
     if (visited.has(resolvedPath)) {
-      throw new Error(`Circular $file reference detected: ${Array.from(visited).join(" -> ")} -> ${resolvedPath}`);
+      throw new Error(`Circular $ref reference detected: ${Array.from(visited).join(" -> ")} -> ${resolvedPath}`);
     }
     visited.add(resolvedPath);
     try {
@@ -85,7 +85,7 @@ function resolveFileRefs(
 
 /**
  * Parses and validates a YAML file against the GraphDSL v1 Zod schema.
- * Resolves $file references (with optional #fragment) before validation.
+ * Resolves $ref references (with optional #fragment) before validation.
  * Returns the validated DSL object without compiling.
  */
 export function loadGraphDsl(filePath: string): GraphDsl {

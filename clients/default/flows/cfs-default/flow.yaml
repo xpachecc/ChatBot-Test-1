@@ -332,7 +332,7 @@ config:
     Coach_Affirmative: "To build on your momentum, "
     default: "To stay aligned, "
 
-  exampleTemplates: { $file: "./flow-content.yaml#exampleTemplates" }
+  exampleTemplates: { $ref: "./flow-content.yaml#exampleTemplates" }
 
   progressRules:
     dynamicCountField: "use_case_context.discovery_questions"
@@ -452,9 +452,9 @@ config:
     roleClarifier: { allowAIRephrase: true, forbidFirstPerson: true }
     default: { allowAIRephrase: false, forbidFirstPerson: false }
 
-  aiPrompts: { $file: "./flow-content.yaml#aiPrompts" }
+  aiPrompts: { $ref: "./flow-content.yaml#aiPrompts" }
 
-  strings: { $file: "./flow-content.yaml#strings" }
+  strings: { $ref: "./flow-content.yaml#strings" }
 
   readout:
     sectionKeys:
@@ -477,11 +477,11 @@ config:
       Section 7: Final Thoughts
       Use ReadinessLevel naming and preserve order with no omissions.
 
-  questionTemplates: { $file: "./flow-content.yaml#questionTemplates" }
+  questionTemplates: { $ref: "./flow-content.yaml#questionTemplates" }
 
-  clarifierRetryText: { $file: "./flow-content.yaml#clarifierRetryText" }
+  clarifierRetryText: { $ref: "./flow-content.yaml#clarifierRetryText" }
 
-  clarificationAcknowledgement: { $file: "./flow-content.yaml#clarificationAcknowledgement" }
+  clarificationAcknowledgement: { $ref: "./flow-content.yaml#clarificationAcknowledgement" }
 
   readoutVoice:
     rolePerspective: "Coach_Affirmative"

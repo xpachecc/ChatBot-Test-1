@@ -17,10 +17,10 @@ function teardownTestDir(): void {
   }
 }
 
-describe("resolveFileRefs ($file with #fragment)", () => {
+describe("resolveRefs ($ref with #fragment)", () => {
   afterEach(teardownTestDir);
 
-  it("resolves $file without fragment to full file contents", () => {
+  it("resolves $ref without fragment to full file contents", () => {
     const dir = setupTestDir();
     const contentPath = join(dir, "content.yaml");
     writeFileSync(contentPath, "selectPersona: bar\nselectMarket: qux\n");
@@ -40,7 +40,7 @@ nodes:
 transitions: { static: [], conditional: [] }
 config:
   meta: { flowTitle: "", flowDescription: "", steps: [] }
-  aiPrompts: { $file: "./content.yaml" }
+  aiPrompts: { $ref: "./content.yaml" }
 `,
     );
 
@@ -48,7 +48,7 @@ config:
     expect(dsl.config?.aiPrompts).toEqual({ selectPersona: "bar", selectMarket: "qux" });
   });
 
-  it("resolves $file with #fragment to specific top-level key", () => {
+  it("resolves $ref with #fragment to specific top-level key", () => {
     const dir = setupTestDir();
     const contentPath = join(dir, "flow-content.yaml");
     writeFileSync(
@@ -78,8 +78,8 @@ nodes:
 transitions: { static: [], conditional: [] }
 config:
   meta: { flowTitle: "", flowDescription: "", steps: [] }
-  aiPrompts: { $file: "./flow-content.yaml#aiPrompts" }
-  strings: { $file: "./flow-content.yaml#strings" }
+  aiPrompts: { $ref: "./flow-content.yaml#aiPrompts" }
+  strings: { $ref: "./flow-content.yaml#strings" }
 `,
     );
 
@@ -91,7 +91,7 @@ config:
     expect(dsl.config?.strings).toEqual({ greet: "Hello!", farewell: "Goodbye!" });
   });
 
-  it("throws when $file targets non-existent file", () => {
+  it("throws when $ref targets non-existent file", () => {
     const dir = setupTestDir();
     const flowPath = join(dir, "flow.yaml");
     writeFileSync(
@@ -108,7 +108,7 @@ nodes:
 transitions: { static: [], conditional: [] }
 config:
   meta: { flowTitle: "", flowDescription: "", steps: [] }
-  aiPrompts: { $file: "./missing.yaml#aiPrompts" }
+  aiPrompts: { $ref: "./missing.yaml#aiPrompts" }
 `,
     );
 
@@ -135,20 +135,20 @@ nodes:
 transitions: { static: [], conditional: [] }
 config:
   meta: { flowTitle: "", flowDescription: "", steps: [] }
-  aiPrompts: { $file: "./content.yaml#nonexistent" }
+  aiPrompts: { $ref: "./content.yaml#nonexistent" }
 `,
     );
 
     expect(() => loadGraphDsl(flowPath)).toThrow(/fragment.*nonexistent.*not found/);
   });
 
-  it("throws on circular $file reference", () => {
+  it("throws on circular $ref reference", () => {
     const dir = setupTestDir();
-    writeFileSync(join(dir, "a.yaml"), 'aiPrompts: { $file: "./b.yaml#aiPrompts" }\n');
+    writeFileSync(join(dir, "a.yaml"), 'aiPrompts: { $ref: "./b.yaml#aiPrompts" }\n');
 
     writeFileSync(
       join(dir, "b.yaml"),
-      'aiPrompts:\n  x: "from b"\n  nested: { $file: "./a.yaml" }\n',
+      'aiPrompts:\n  x: "from b"\n  nested: { $ref: "./a.yaml" }\n',
     );
 
     const flowPath = join(dir, "flow.yaml");
@@ -166,10 +166,10 @@ nodes:
 transitions: { static: [], conditional: [] }
 config:
   meta: { flowTitle: "", flowDescription: "", steps: [] }
-  aiPrompts: { $file: "./a.yaml#aiPrompts" }
+  aiPrompts: { $ref: "./a.yaml#aiPrompts" }
 `,
     );
 
-    expect(() => loadGraphDsl(flowPath)).toThrow(/Circular \$file reference/);
+    expect(() => loadGraphDsl(flowPath)).toThrow(/Circular \$ref reference/);
   });
 });
