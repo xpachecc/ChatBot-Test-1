@@ -263,18 +263,6 @@ exampleTemplates:
     - 'Example: "We need this operating reliably by end of this quarter, with weekly governance checks."'
     - 'Example: "Within 90 days, we need a repeatable process across teams, reviewed monthly."'
 
-questionTemplates:
-  - key: S2_CONFIRM_PLAN
-    question: |
-      [Step 2 – What We Will Accomplish Today – Question 1 of 2]
-      To make the best use of our time, we'll focus on uncovering which processes most need alignment and what barriers may slow that progress.
-
-      {{name}}, could you share which specific operational areas (for example, {{examples}}) are currently most inconsistent or fragmented as you pursue this goal?
-  - key: S2_OBSTACLE
-    question: |
-      [Step 2 – What We Will Accomplish Today – Question 2 of 2]
-      To ensure we explore the right depth, what would you say is the biggest obstacle slowing improvement in those areas — technology limitations, process gaps, or staff adoption?
-
 clarifierRetryText:
   step1Ready: "Please answer with yes or no."
   step2ConfirmPlan: "To keep this moving, please name one or two operational areas (e.g., patient administration, data management, clinical systems) that feel most fragmented."

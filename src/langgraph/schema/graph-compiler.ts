@@ -5,6 +5,7 @@ import { resolveHandler, resolveRouter, resolveConfig, resolveConfigFn } from ".
 import { createGenericHandler } from "./generic-handlers.js";
 import { evaluateRoutingRules } from "../core/routing/routing-engine.js";
 import { setGraphMessagingConfig } from "../core/config/messaging.js";
+import { setModelConfig } from "../core/config/model-factory.js";
 import { interpolate } from "../core/helpers/template.js";
 
 const SUPPORTED_STATE_CONTRACTS = ["state.CfsStateSchema"];
@@ -479,13 +480,24 @@ export function preflightRoutingValidation(dsl: GraphDsl): PreflightWarning[] {
     }
   }
 
-  // 3. Question-ingest pairing — every question node should reach an ingest node
+  // 3. Question-ingest pairing — every question node should have an ingest that processes its answer.
+  // In router-based flows (e.g. CFS), the question transitions to __end__; the router routes to the
+  // ingest on the next turn. So we check: can any router that routes TO this question also reach an ingest?
   const nodeKindMap = new Map(dsl.nodes.map((n) => [n.id, n.kind]));
   const questionNodes = dsl.nodes.filter((n) => n.kind === "question");
+  const routersForNode = new Map<string, Set<string>>();
+  for (const ct of dsl.transitions.conditional) {
+    for (const dest of Object.values(ct.destinations ?? {})) {
+      if (dest === "__end__") continue;
+      if (!routersForNode.has(dest)) routersForNode.set(dest, new Set());
+      routersForNode.get(dest)!.add(ct.from);
+    }
+  }
   for (const qNode of questionNodes) {
-    const visited = new Set<string>();
-    const bfsQueue = [qNode.id];
     let foundIngest = false;
+    // Path A: from question, follow outgoing edges (direct question -> ingest or question -> X -> ingest)
+    const visited = new Set<string>();
+    let bfsQueue = [qNode.id];
     while (bfsQueue.length > 0) {
       const current = bfsQueue.shift()!;
       if (visited.has(current)) continue;
@@ -498,6 +510,30 @@ export function preflightRoutingValidation(dsl: GraphDsl): PreflightWarning[] {
         if (!visited.has(t)) bfsQueue.push(t);
       }
       if (foundIngest) break;
+    }
+    // Path B: router-based flow — routers that route to this question can also route to ingest
+    if (!foundIngest) {
+      const routers = routersForNode.get(qNode.id);
+      if (routers) {
+        for (const r of routers) {
+          const rVisited = new Set<string>();
+          let rQueue = [r];
+          while (rQueue.length > 0) {
+            const current = rQueue.shift()!;
+            if (rVisited.has(current)) continue;
+            rVisited.add(current);
+            const targets = adj.get(current);
+            if (!targets) continue;
+            for (const t of targets) {
+              if (t === "__end__") continue;
+              if (nodeKindMap.get(t) === "ingest") { foundIngest = true; break; }
+              if (!rVisited.has(t)) rQueue.push(t);
+            }
+            if (foundIngest) break;
+          }
+          if (foundIngest) break;
+        }
+      }
     }
     if (!foundIngest) {
       warnings.push({
@@ -742,6 +778,10 @@ export function compileGraphFromDsl(inputDsl: GraphDsl): CompiledGraph {
   } else if (dsl.runtimeConfigRefs.initConfigRef) {
     const initFn = resolveConfig(dsl.runtimeConfigRefs.initConfigRef);
     initFn();
+  }
+
+  for (const [alias, modelCfg] of Object.entries(dsl.config.models)) {
+    setModelConfig(alias, modelCfg);
   }
 
   const graph: any = new StateGraph<CfsState>({

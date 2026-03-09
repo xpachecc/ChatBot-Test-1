@@ -15,10 +15,6 @@ graph:
     4-step consultative conversation: Know Your Customer, Narrow Down
     Use Cases, Perform Discovery, and Final Readout with Next Steps.
   entrypoint: routeInitFlow
-  tags:
-    - cfs
-    - discovery
-    - readout
 
 stateContractRef: "state.CfsStateSchema"
 
@@ -142,7 +138,6 @@ nodes:
     kind: ingest
     reads: [messages, session_context]
     writes: [messages, session_context]
-    signalAgents: false
     nodeConfig:
       ingest:
         affirmativeCheckConfig:
@@ -175,7 +170,6 @@ nodes:
     kind: ingest
     reads: [messages, session_context]
     writes: [messages, session_context]
-    signalAgents: false
     nodeConfig:
       ingest:
         affirmativeCheckConfig:
@@ -272,11 +266,6 @@ transitions:
     - { from: nodeDetermineUseCaseQuestions, to: nodeAskUseCaseQuestions }
     - { from: nodeDeterminePillars,        to: routePillarsLoop }
     - { from: nodeBuildReadout,            to: nodeDisplayReadout }
-
-# ── Runtime config references ────────────────────────────────────────
-runtimeConfigRefs:
-  messagePolicyRef: "cfs.messagePolicy"
-  promptSetRef: "cfs.aiPrompts"
 
 # ── Per-graph conversation config ────────────────────────────────────
 config:
@@ -442,6 +431,14 @@ config:
       model: "gpt-4o"
       temperature: 0.4
       maxRetries: 1
+    sanitizer:
+      model: "gpt-3.5-turbo"
+      temperature: 0
+      maxRetries: 1
+    riskAssessment:
+      model: "gpt-4o"
+      temperature: 0.8
+      maxRetries: 1
 
   messagePolicy:
     intro: { allowAIRephrase: false, forbidFirstPerson: false }
@@ -477,8 +474,6 @@ config:
       Section 7: Final Thoughts
       Use ReadinessLevel naming and preserve order with no omissions.
 
-  questionTemplates: { $ref: "./flow-content.yaml#questionTemplates" }
-
   clarifierRetryText: { $ref: "./flow-content.yaml#clarifierRetryText" }
 
   clarificationAcknowledgement: { $ref: "./flow-content.yaml#clarificationAcknowledgement" }
@@ -497,8 +492,3 @@ config:
   signalAgents:
     enabled: true
     ttlMs: 1000
-
-# ── Compile-time validation ──────────────────────────────────────────
-validation:
-  requiredStateFields:
-    - session_context.session_id
